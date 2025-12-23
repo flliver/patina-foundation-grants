@@ -25,10 +25,19 @@ Bring up the end-to-end path from Jetson Orin (Ubuntu) through USB to one Arduin
 ### Task 2 - Full leg pair on one Mega
 #### Narrative
 Expand the single-motor sketch to drive all six joints for one leg pair on a single Arduino Mega (hip yaw x2, hip linear x2, knee linear x2). Normalize inputs to [-1, 1] for yaw and [0, 1] for linear axes, then map to PWM per motor using per-joint calibration. Return all six joint positions in the response frame to the Orin via a new KrabbyMCU python package. The hip/knee linear motors (4x total) will be connected to the RobotPower Multimoto, and a linear potentiometer for feedback, while the yaw motors will each be connected to a BTN7960 h-bridge + DFRobot 12V motor w/ quadrature encoder (so two h-bridge, one per motor). 
+
+The overall work should be phased like so:
+1) Extend existing h-bridge code to second motor/h-bridge and add pin out, deliver KrabbyMCU that sweeps 2 motors simultaneously forward/aft (i.e. directions are reversed)
+2) Add a single motor to multimoto, commit and deliver KrabbyMCU that sweeps 3 motors
+3) Copy the single multimoto motor to other 3x knee/hip motors, being mindful of direction reverse and linear pot limits, show sweep and stops work on all
+4) Deal with bugs/edge cases/error conditions/miswiring/etc as appropriate, do final cleanup
+
 #### Acceptance Criteria
 - Commit to `krabby-research/firmware/` updates the Arduino firmware to control and report all six joints on one Mega, plus an updated `SETUP.md` with wiring pinouts, per-joint calibration instructions, and a one-command run example from the Orin.
 - KrabbyMCU python package can issue a full joint vector for one leg pair and observe all six motors moving through their full configured ranges with matching telemetry at ~50 Hz.
 - A testRange function is available that moves all six motor joints one at a time to its configured min, home, and max positions. Running this script is how we'll validate the whole thing. This should be run on setup() to move to the forward position slowly w/ pulsing until feedback on R_IS/L_IS is reached (depending on if it is left or right side motor), then it should internally store the end stop positions reached for each limb (and print to log).
+- Motors should be able to be swept simultaneously without causing state/threading/race condition issues
+- Arduino code should protect itself from bad calls from KrabbyMCU python code (i.e. calling yaw commands repeatedly should not cause motor lockups or chatter)
 - Hip motor will self-calibrate by moving upward until a stop is reached (leg fully vertical), then will use the current linear potentiometer value + a config value (i.e 85% of max potentiometer value) as the end stop (since it will not be possible to move the hip downward w/o hitting the floor)
 - Knee motor will move down/outward (i.e. clockwise) until physical end stop is reached (when tibia and fibia are touching), then similar to hip, will use some configured value for the leg max movement (i.e. 90% of linear potentiometer value). Note, knee pot will be at smallest value when leg is extended, while hip will be at largest value when leg is extended. If you need a diagram for it let me know and I can do so.
 - All pin outs must be recorded in a wiring diagram (similar to what was provided in task 1). Pin outs for liner pots + h-bridges should not block multimoto pins, and multimoto must be used in simulation or real world if sim is not available. 
