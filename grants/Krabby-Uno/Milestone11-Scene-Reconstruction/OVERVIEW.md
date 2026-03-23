@@ -1,93 +1,102 @@
 # Patina Foundation Grant - Krabby-Uno Milestone 11: Scene Reconstruction & Locomotion Benchmarking
 
 ## Grant Overview
-Build a simulation pipeline that converts monocular video into IsaacSim environments and evaluates locomotion models on them. The pipeline uses SLAM3R to produce globally aligned point clouds from phone video, conditions and converts them to USD meshes, and imports into IsaacSim. Two locomotion models (Extreme Parkour and SoloParkour) are then evaluated on identical reconstructed environments using a hexapod embodiment, producing comparable metrics and demo videos.
+Build a simulation pipeline that converts monocular phone video into physically accurate IsaacSim environments and evaluates locomotion models on them. The robot uses depth + PPO for locomotion, so the priority is collision geometry fidelity, not visual rendering quality. The pipeline uses COLMAP for structure-from-motion and dense MVS reconstruction, generates conditioned collision meshes, exports to USD, and imports into IsaacSim. Two locomotion models (Extreme Parkour and Holosoma quadruped) are then evaluated on identical reconstructed environments using a hexapod embodiment, producing comparable metrics and demo videos. Holosoma runs without vision (proprioception-only), providing a baseline comparison against Extreme Parkour's depth-based approach. NVIDIA NuRec (COLMAP + 3DGUT) provides the reference workflow.
 
 ## Why is this Important?
-- Bridges the real-to-sim gap by turning ordinary phone video into walkable simulation environments, making environment creation accessible to anyone with a camera.
+- Bridges the real-to-sim gap by turning ordinary phone video into physically walkable simulation environments, making environment creation accessible to anyone with a camera.
 - Provides an apples-to-apples comparison framework for locomotion models on identical environments, enabling rigorous benchmarking.
 - Extends state-of-the-art quadruped locomotion models to hexapod embodiment, broadening the research landscape for multi-legged robots.
-- Explicitly addresses mesh conditioning (noise removal, hole filling, collision proxy generation), the step most reconstruction pipelines skip and the reason most sim transfers fail.
+- Focuses on collision geometry quality over visual fidelity — the robot perceives via depth, so what matters is that the physics mesh accurately represents the real-world surfaces.
 
 ## Tasks
-### Task 0 - SLAM3R Video Reconstruction (Video → Point Cloud)
+### Task 0 - Scene Capture & COLMAP Sparse Reconstruction (Photos → Sparse Point Cloud)
 #### Narrative
-Capture monocular video of 2–3 indoor/outdoor spaces using a phone and run SLAM3R to produce globally aligned dense point clouds. SLAM3R is a two-hierarchy neural network (I2P for local reconstruction within sliding windows, L2W for global registration) that directly regresses 3D pointmaps from monocular RGB video at 20+ FPS on an RTX 4090. It is chosen over SAM3D because it reconstructs globally consistent environments rather than object-level Gaussian splats. MASt3R-SLAM is an acceptable alternative if SLAM3R proves difficult to set up. Export the resulting point clouds as PLY files for downstream meshing.
+Capture photos of 2–3 indoor/outdoor spaces using a phone camera. Run COLMAP's Structure-from-Motion (SfM) pipeline to extract camera poses and a sparse point cloud. COLMAP is the industry-standard SfM tool used by NVIDIA's NuRec workflow, GaussGym, and most real-to-sim pipelines. It produces reliable camera intrinsics/extrinsics that are required for dense reconstruction. Use pinhole or simple pinhole camera model for compatibility with downstream tools.
 #### Tooling
-- SLAM3R (`github.com/PKU-VCL-3DV/SLAM3R`): primary reconstruction model. Accepts video input, outputs dense pointmaps in global coordinates via sliding-window I2P + L2W alignment.
-- MASt3R-SLAM (`github.com/edexheim/mast3r_slam`): fallback. Monocular dense SLAM leveraging MASt3R 3D reconstruction priors, 15 FPS on RTX 4090, globally consistent poses + dense geometry.
-- Spann3R: secondary fallback for feed-forward reconstruction.
-- Export: save point clouds as PLY using Open3D (`open3d.io.write_point_cloud`).
+- COLMAP (`colmap`): SfM pipeline. Key commands:
+  - `colmap feature_extractor` — SIFT feature detection with `--ImageReader.camera_model PINHOLE`
+  - `colmap exhaustive_matcher` — feature matching (GPU-accelerated with `--SiftMatching.use_gpu 1`)
+  - `colmap mapper` — sparse reconstruction, outputs camera poses + sparse point cloud to `sparse/` directory
+  - `colmap gui` — optional visual verification of sparse reconstruction
+- Input: JPEG/PNG photos (convert HEIC if iPhone: Settings → Camera → Formats → Most Compatible)
+- Output: `sparse/` directory with camera poses, intrinsics, and sparse point cloud
 #### Acceptance Criteria
-- Phone video captured following guidelines: slow smooth motion, full loop (start/end same position), avoiding reflective surfaces / motion blur / low-texture regions.
-- SLAM3R (or fallback) produces a dense point cloud in a global coordinate frame from each video; PLY files exported and committed.
-- Point clouds are visually inspectable in Open3D or MeshLab; coverage and alignment verified across 2–3 scenes.
+- Photos captured following photogrammetry best practices: slow steady motion, ~60% overlap between shots, multiple heights/angles, locked focus/exposure, avoiding reflective surfaces / motion blur / low-texture regions.
+- COLMAP sparse reconstruction completes successfully; camera poses estimated for all (or nearly all) input images.
+- Sparse point cloud visually verified in COLMAP GUI or MeshLab; scene structure is recognizable across 2–3 scenes.
 
-### Task 1 - Point Cloud to Mesh Conversion (Point Cloud → OBJ)
+### Task 1 - Dense Reconstruction & Collision Mesh Generation (Sparse → Dense → Mesh)
 #### Narrative
-Convert the SLAM3R point clouds into triangle meshes suitable for simulation. Use Open3D's Poisson surface reconstruction (`create_from_point_cloud_poisson`) as the primary method — it produces watertight meshes from oriented point clouds and handles the density variations typical of SLAM output. If normals are missing, estimate them with `estimate_normals`. After Poisson reconstruction, crop low-density regions using the density filter to remove extrapolated geometry. Export as OBJ for maximum compatibility with downstream tools.
+Run COLMAP's Multi-View Stereo (MVS) pipeline to produce a dense point cloud from the sparse reconstruction, then generate a collision-quality triangle mesh. Since the robot uses depth + PPO, the mesh must be physically accurate (walkable surfaces, correct geometry) rather than visually pretty. COLMAP provides built-in dense reconstruction (`image_undistorter` → `patch_match_stereo` → `stereo_fusion`) and meshing (`poisson_mesher` or `delaunay_mesher`). For better mesh quality, export the dense point cloud and run Poisson reconstruction in Open3D with more control over parameters. The two COLMAP meshers can also be combined: Delaunay first to filter outliers, then Poisson for a smooth surface.
 #### Tooling
-- Open3D (`open3d`): primary library for the full pipeline.
-  - `open3d.geometry.PointCloud.estimate_normals()`: compute normals if SLAM3R output lacks them.
-  - `open3d.geometry.TriangleMesh.create_from_point_cloud_poisson(pcd, depth=9)`: Poisson surface reconstruction. `depth` controls resolution (8–10 typical for room-scale).
-  - Density-based cropping: remove vertices below a density percentile threshold to trim Poisson extrapolation artifacts.
-- PyMeshLab (`pymeshlab`): alternative if Poisson in Open3D underperforms. Offers screened Poisson, ball-pivoting, and marching cubes via MeshLab filters.
-- Export: `open3d.io.write_triangle_mesh("scene.obj", mesh)` or `trimesh.exchange.export.export_mesh`.
+- COLMAP dense reconstruction:
+  - `colmap image_undistorter` — undistort images using estimated camera parameters
+  - `colmap patch_match_stereo` — compute dense depth maps via multi-view stereo
+  - `colmap stereo_fusion` — fuse depth maps into a dense point cloud (`fused.ply`)
+- COLMAP meshing (option A — quick):
+  - `colmap delaunay_mesher --input_type dense` — Delaunay triangulation, good for outlier filtering
+  - `colmap poisson_mesher` — Poisson surface reconstruction, produces smooth watertight mesh
+- Open3D meshing (option B — more control):
+  - `open3d.geometry.PointCloud.estimate_normals()` — compute normals if missing from fusion output
+  - `open3d.geometry.TriangleMesh.create_from_point_cloud_poisson(pcd, depth=9)` — Poisson reconstruction with tunable resolution (depth 8–10 for room-scale)
+  - Density-based cropping to remove Poisson extrapolation artifacts at scene boundaries
+- Output: triangle mesh as OBJ or PLY
 #### Acceptance Criteria
-- Normals estimated (if needed) and Poisson reconstruction produces a watertight triangle mesh from each point cloud.
-- Low-density extrapolation artifacts cropped; mesh visually matches the original point cloud coverage.
-- Meshes exported as OBJ files; loadable in MeshLab/Blender for visual inspection.
+- COLMAP MVS produces a dense point cloud (`fused.ply`) for each scene; point density is sufficient to capture floor, walls, and obstacles.
+- Mesh reconstruction (COLMAP or Open3D Poisson) produces a watertight triangle mesh from each dense point cloud.
+- Meshes are visually inspected in MeshLab/Blender; walkable surfaces (floors, ramps, stairs) are geometrically accurate.
 
-### Task 2 - Mesh Conditioning & USD Export (OBJ → USD)
+### Task 2 - Mesh Conditioning & USD Export (Mesh → Collision-Ready USD)
 #### Narrative
-Raw reconstructed meshes are not walkable. Apply mandatory conditioning: statistical outlier removal, hole filling, Laplacian/Taubin smoothing, quadric-edge-collapse decimation, and collision proxy generation. Then convert to USD with corrected scale (monocular ambiguity), Z-up orientation, and origin alignment. Import into IsaacSim and verify the environment loads. Support two collision modes: visual fidelity (full mesh + flat ground plane or simplified collision mesh) and physical interaction (clean collision mesh with mesh collider).
+Raw reconstructed meshes contain noise, floaters, holes, and non-walkable topology. Apply conditioning focused on physics accuracy: remove outliers/floaters, fill holes, smooth surfaces, decimate to manageable triangle counts, and generate collision proxies. Since the robot uses depth sensing, the mesh IS the environment — there is no separate visual layer. Convert conditioned meshes to USD with correct scale (monocular reconstruction has scale ambiguity — must be manually calibrated), Z-up orientation, and origin alignment. Add physics properties (rigid body, collision mesh) and import into IsaacSim.
 #### Tooling
 - Open3D:
-  - `remove_degenerate_triangles()`, `remove_unreferenced_vertices()`: basic cleanup.
-  - `filter_smooth_laplacian()` / `filter_smooth_taubin()`: surface smoothing (Taubin avoids shrinkage).
-  - `simplify_quadric_decimation(target_number_of_triangles)`: mesh decimation.
-- PyMeshLab (`pymeshlab`): heavier-duty conditioning.
-  - `remove_isolated_pieces_wrt_diameter()`: floater/outlier removal.
-  - `close_holes(maxholesize=N)`: hole filling.
-  - `simplification_quadric_edge_collapse_decimation()`: decimation with quality preservation.
-  - `generate_simplified_point_cloud()` → convex hull for collision proxy.
+  - `remove_degenerate_triangles()`, `remove_unreferenced_vertices()` — basic cleanup
+  - `filter_smooth_taubin()` — surface smoothing without shrinkage (preferred over Laplacian)
+  - `simplify_quadric_decimation(target)` — reduce triangle count while preserving geometry
+- PyMeshLab (`pymeshlab`):
+  - `remove_isolated_pieces_wrt_diameter()` — floater/outlier removal
+  - `close_holes(maxholesize=N)` — hole filling
+  - `simplification_quadric_edge_collapse_decimation()` — decimation with quality bounds
 - trimesh (`trimesh`):
-  - `trimesh.repair.fill_holes()`, `trimesh.repair.fix_winding()`, `trimesh.repair.fix_normals()`: quick repair pass.
-  - `trimesh.convex.convex_hull(mesh)`: generate convex collision proxy.
-  - `trimesh.decomposition.convex_decomposition(mesh)`: V-HACD approximate convex decomposition for non-convex collision shapes.
+  - `trimesh.repair.fill_holes()`, `trimesh.repair.fix_normals()` — quick repair
+  - `trimesh.convex.convex_hull()` — simple collision proxy
+  - `trimesh.decomposition.convex_decomposition()` — V-HACD approximate convex decomposition for complex collision shapes
 - USD conversion:
-  - Isaac Lab `MeshConverter` (`isaaclab.sim.converters.mesh_converter`): converts OBJ/STL/FBX → USD with physics properties, collision meshes, and instanceable format. Preferred path for IsaacSim integration.
-  - `omni.kit.asset_converter` (Omniverse Kit extension): batch conversion of OBJ/FBX/glTF → USD.
-  - Manual: `pxr` (OpenUSD Python API) for fine-grained control over `UsdGeom`, `UsdPhysics`, and `PhysxSchema` if the converters don't handle collision modes correctly.
+  - Isaac Lab `MeshConverter` (`isaaclab.sim.converters.mesh_converter`) — converts OBJ/STL/FBX → USD with physics properties and collision meshes in instanceable format. Preferred path.
+  - `pxr` (OpenUSD Python API) — manual control over `UsdGeom`, `UsdPhysics`, `PhysxSchema` if `MeshConverter` doesn't handle collision modes correctly
+- Scale calibration: place a known-size reference object in the scene during capture, or measure a known distance post-reconstruction and apply a uniform scale factor
 #### Acceptance Criteria
-- Conditioning pipeline removes floaters/noise, fills holes, smooths surfaces, and decimates; before/after comparison documented.
-- Collision mesh generated for each environment (visual fidelity or physical interaction mode selectable).
-- USD export has correct scale, Z-up orientation, and origin; each environment loads in IsaacSim without errors.
+- Conditioning pipeline removes floaters, fills holes, smooths surfaces, and decimates; before/after comparison documented for each scene.
+- Collision mesh generated for each environment; convex decomposition applied where needed for non-convex geometry.
+- USD export has correct scale (validated against known reference), Z-up orientation, physics properties (rigid body + mesh collider), and loads in IsaacSim without errors.
+- Robot can spawn on the mesh floor and depth sensor returns plausible readings from the environment geometry.
 
 ### Task 3 - Locomotion Model Integration (Dockerized)
 #### Narrative
-Integrate Extreme Parkour and SoloParkour as the two evaluation models. Each model runs in its own isolated Docker container, launches its own IsaacSim instance, consumes standardized USD environments, and outputs trajectory data and metrics. No HAL integration is required.
+Integrate Extreme Parkour and Holosoma quadruped as the two evaluation models. Each model runs in its own isolated Docker container, launches its own IsaacSim instance, consumes standardized USD environments, and outputs trajectory data and metrics. No HAL integration is required. Extreme Parkour consumes depth observations from the collision mesh geometry. Holosoma runs proprioception-only (no vision) — it uses joint states and IMU as observations, providing a baseline that tests pure locomotion capability on the reconstructed terrain without relying on perception.
 #### Acceptance Criteria
-- Dockerfiles for Extreme Parkour and SoloParkour build and run successfully; each container launches IsaacSim independently.
+- Dockerfiles for Extreme Parkour and Holosoma build and run successfully; each container launches IsaacSim independently.
 - Both models load the same set of USD environments (reconstructed) without path or asset errors.
-- Each model outputs trajectory and metric data in a consistent format for downstream evaluation.
+- Extreme Parkour receives depth observations from the environment collision mesh; Holosoma runs proprioception-only. Both output trajectory and metric data in a consistent format.
 
 ### Task 4 - Hexapod Adaptation
 #### Narrative
-Convert both Extreme Parkour and SoloParkour from quadruped to hexapod embodiment. Update action spaces, observation spaces, and URDF/embodiment configs for the higher DOF. Add reward shaping to encourage stable gaits: penalize all-legs-simultaneous motion and encourage alternating leg groups (tripod bias) to avoid unstable emergent gaits.
+Convert both Extreme Parkour and Holosoma from quadruped to hexapod embodiment. Update action spaces, observation spaces, and URDF/embodiment configs for the higher DOF. Add reward shaping to encourage stable gaits: penalize all-legs-simultaneous motion and encourage alternating leg groups (tripod bias) to avoid unstable emergent gaits. Holosoma already has a clean extension pattern for adding new robots (see Milestone 5), so the hexapod adaptation should follow the same `holosoma_ext` registration flow.
 #### Acceptance Criteria
 - Action and observation spaces updated for hexapod DOF in both models; URDF/embodiment configs point to the Krabby hexapod asset.
 - Reward shaping added penalizing simultaneous leg motion and encouraging tripod-style alternation; reward terms documented.
 - Both models demonstrate stable hexapod locomotion in at least one environment without falls over a defined time window.
 
 ## Information
-- Primary reconstruction tool: SLAM3R (MASt3R-SLAM or Spann3R as fallbacks). SAM3D is not suitable as the primary pipeline due to lack of global alignment and simulation-ready geometry, but may optionally augment scenes with semantic objects.
-- Mesh pipeline: Open3D (Poisson reconstruction, smoothing, decimation) + PyMeshLab (hole filling, floater removal) + trimesh (repair, convex decomposition for collision).
-- USD conversion: Isaac Lab `MeshConverter` (preferred) or `omni.kit.asset_converter` for OBJ → USD with physics/collision properties.
-- Capture guidelines: slow smooth camera motion, full loop (start/end same position), avoid reflective surfaces, motion blur, and low-texture regions.
-- Known reconstruction issues (not bugs): scale ambiguity, floaters/artifacts, baked lighting, missing geometry — all inherent to monocular reconstruction.
-- Models in scope: Extreme Parkour, SoloParkour only. Holosoma and LocoMamba are deferred (additional embodiment work and training pipeline alignment needed).
-- Non-goals: real-world deployment, HAL integration, robotic arm support, UI/dashboard, procedural environment generation (deferred).
+- The robot uses depth + PPO for locomotion. Visual fidelity (textures, lighting, Gaussian splatting) is not required. Collision mesh accuracy is the priority.
+- Primary pipeline: COLMAP SfM → COLMAP MVS dense reconstruction → Poisson/Delaunay meshing → mesh conditioning → USD with physics.
+- NVIDIA NuRec reference workflow (COLMAP + 3DGUT) is the starting point, but 3DGUT Gaussian training is optional since we don't need photorealistic RGB rendering.
+- Scale calibration is critical: monocular reconstruction has inherent scale ambiguity. Include a known-size reference object in captures or measure post-reconstruction.
+- Capture guidelines: ~60% photo overlap, multiple heights/angles, locked focus/exposure, avoid reflective surfaces / motion blur / low-texture regions. JPEG/PNG format (convert HEIC).
+- Models in scope: Extreme Parkour (depth-based), Holosoma quadruped (proprioception-only, no vision). SoloParkour is deferred until its code repo is published (see Appendix C). LocoMamba is deferred.
+- Non-goals: real-world deployment, HAL integration, robotic arm support, UI/dashboard, procedural environment generation (deferred), photorealistic rendering.
 - Repository structure:
   ```
   krabby-research/
@@ -95,20 +104,73 @@ Convert both Extreme Parkour and SoloParkour from quadruped to hexapod embodimen
   │   └── reconstructed/
   ├── models/
   │   ├── extreme_parkour/
-  │   └── solo_parkour/
+  │   └── holosoma/
   └── docker/
   ```
 
 ## FAQ
-- Why SLAM3R over SAM3D?
-  SAM3D excels at object-level reconstruction but outputs Gaussian splats / partial meshes without global scene alignment. SLAM3R reconstructs globally consistent environments directly from video sequences, producing dense pointmaps aligned in world space.
+- Why COLMAP over SLAM3R for the primary pipeline?
+  COLMAP is the industry-standard SfM/MVS pipeline with mature dense reconstruction and built-in meshing. It's the backbone of NVIDIA's NuRec workflow and GaussGym. SLAM3R is a newer feed-forward model that's faster but less proven for producing collision-quality meshes. See Appendix A for SLAM3R as an alternative.
+- Why not use 3DGUT Gaussian splatting?
+  The robot uses depth + PPO, not RGB. Gaussian splatting provides photorealistic rendering but no collision geometry. The collision mesh from COLMAP MVS + Poisson reconstruction is what the robot actually needs. 3DGUT can optionally be added later if RGB rendering becomes useful.
 - Why is mesh conditioning mandatory?
-  Raw reconstructions contain floaters, holes, bad topology, and non-walkable surfaces. Without conditioning, no locomotion model can traverse them.
-- What if models fail on reconstructed environments?
-  Retrain on reconstructed meshes or a mixed dataset. Support simplified collision proxies (convex decomposition via trimesh/V-HACD) if meshes remain non-walkable.
-- What collision modes are supported?
-  Visual fidelity mode (full mesh + flat ground plane or simplified collision mesh) and physical interaction mode (clean collision mesh with IsaacSim mesh collider).
-- Why Open3D + PyMeshLab + trimesh instead of one library?
-  Open3D is strongest at point cloud processing and Poisson reconstruction. PyMeshLab has the best hole-filling and floater removal filters. trimesh excels at repair and convex decomposition for collision proxies. The three complement each other well.
-- How does USD conversion work?
-  Isaac Lab's `MeshConverter` wraps `omni.kit.asset_converter` and outputs instanceable USD with physics properties and collision meshes — the format IsaacSim expects for learning environments.
+  Raw reconstructions contain floaters, holes, bad topology, and non-walkable surfaces. Without conditioning, the robot's depth sensor sees garbage geometry and the physics simulation breaks.
+- How do you handle scale ambiguity?
+  Monocular reconstruction has no absolute scale. Either include a known-size reference object in the scene during capture, or measure a known real-world distance and apply a uniform scale correction post-reconstruction.
+- What if the collision mesh is too noisy for locomotion?
+  Retrain models on the reconstructed meshes to close the domain gap. Use simplified collision proxies (convex decomposition via V-HACD) for particularly problematic geometry. As a last resort, add a flat ground plane and use the mesh only for obstacle geometry.
+
+## Appendix A — SLAM3R Alternative Pipeline (Reference)
+If COLMAP proves too slow or the photo-based capture workflow is impractical, SLAM3R provides a video-first alternative. This was the original M11 approach before switching to the NuRec/COLMAP pipeline.
+
+### Pipeline: SLAM3R → Open3D Poisson → Mesh Conditioning → USD
+- Input: monocular video (phone capture), not photos
+- SLAM3R (`github.com/PKU-VCL-3DV/SLAM3R`): two-hierarchy neural network (I2P for local reconstruction, L2W for global registration). Directly regresses dense 3D pointmaps from video at 20+ FPS on RTX 4090. Outputs globally aligned point cloud.
+- MASt3R-SLAM (`github.com/edexheim/mast3r_slam`): fallback. Monocular dense SLAM using MASt3R 3D reconstruction priors, 15 FPS on RTX 4090.
+- Spann3R: secondary fallback for feed-forward reconstruction.
+- Meshing: export point cloud as PLY → Open3D `estimate_normals()` → `create_from_point_cloud_poisson(depth=9)` → density-based cropping.
+- Conditioning + USD export: same as Task 2 (Open3D / PyMeshLab / trimesh → Isaac Lab `MeshConverter`).
+
+### Trade-offs vs COLMAP
+| | COLMAP | SLAM3R |
+|---|---|---|
+| Input | Photos (~60% overlap) | Video (continuous) |
+| Speed | Slow (minutes–hours for MVS) | Fast (real-time feed-forward) |
+| Maturity | Industry standard, battle-tested | Newer research, less proven |
+| Dense reconstruction | Built-in MVS pipeline | Direct pointmap regression |
+| Mesh quality | High (MVS + Poisson/Delaunay) | Depends on pointmap density |
+| NVIDIA ecosystem | Native (NuRec workflow) | Requires manual integration |
+| Scale | Ambiguous (monocular) | Ambiguous (monocular) |
+
+### When to use SLAM3R instead
+- Video capture is more natural than taking hundreds of photos (e.g., walking through a space)
+- Faster iteration is needed (no MVS compute time)
+- COLMAP fails on the scene (e.g., too few features, repetitive textures)
+
+## Appendix B — 3DGUT / NuRec Visual Layer (Optional)
+If depth-only perception proves insufficient and RGB observations become needed (e.g., for semantic navigation or visual PPO), the 3DGUT Gaussian splatting layer can be added on top of the collision mesh pipeline.
+
+### Adding 3DGUT
+- Requires: COLMAP sparse reconstruction (already produced in Task 0)
+- Run: `python train.py --config-name apps/colmap_3dgut_mcmc.yaml path=/path/to/colmap/ export_usdz.enabled=true`
+- Output: USDZ with Gaussian splatting data, loadable in Isaac Sim 5.0+ as a neural volume
+- The Gaussian layer provides photorealistic RGB rendering; the collision mesh (from Task 1–2) provides physics
+- GaussGym (`gauss-gym.com`) demonstrates this dual approach: Gaussians for rendering, separate collision mesh for physics, achieving 100K+ steps/sec in IsaacGym
+
+### When to add 3DGUT
+- Robot policy needs RGB observations (not just depth)
+- Semantic navigation tasks (e.g., avoid puddles, follow paths) where depth alone is insufficient
+- Demo/visualization purposes where photorealistic rendering is desired
+
+## Appendix C — SoloParkour (Deferred)
+SoloParkour is a strong candidate for future inclusion but its code repository is not yet published. Once available, it would replace or supplement Holosoma as the second evaluation model.
+
+### Integration plan (when repo is available)
+- Runs in its own Docker container like Extreme Parkour
+- Consumes depth observations from the collision mesh
+- Same hexapod adaptation process (action/obs space update, reward shaping)
+- Same evaluation metrics for direct comparison
+
+### Why it was deferred
+- Code repo not published — cannot build, containerize, or adapt without source access
+- Holosoma provides a viable proprioception-only baseline in the meantime, and its extension pattern is already proven from Milestone 5
