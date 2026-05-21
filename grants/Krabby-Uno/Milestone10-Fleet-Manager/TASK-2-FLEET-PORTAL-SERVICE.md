@@ -2,7 +2,7 @@
 
 ## 1. Narrative
 
-Build the **fleet service** (on the single EC2) and the **web portal** (Next.js) so operators can list devices and open a device detail view with **portal telemetry**, and send commands. Telemetry comes over **AWS IoT Core (MQTT)**: each robot's fleet agent publishes once per minute to `krab/{thingName}/telemetry`; the fleet service subscribes, upserts the latest into the DynamoDB registry (Task 1), and serves it to the portal. Device online/last-seen comes from IoT presence events. Teleop (Task 3) and HAL→S3 historical uploads are separate; this task is device list + device detail + 1/min telemetry + send-command. Document auth (Cognito) and AWS prerequisites.
+Build the **fleet service** (on the single EC2) and the **web portal** (Next.js) so operators can list devices and open a device detail view with **portal telemetry**, and send commands. Telemetry comes over **AWS IoT Core (MQTT)**: each robot's `krabby agent` publishes once per minute to `krab/{thingName}/telemetry`; the fleet service subscribes, upserts the latest into the DynamoDB registry (Task 1), and serves it to the portal. Device online/last-seen comes from IoT presence events. Teleop (Task 3) and HAL→S3 historical uploads are separate; this task is device list + device detail + 1/min telemetry + send-command. Document auth (Cognito) and AWS prerequisites.
 
 ## 2. Scope
 
@@ -19,7 +19,7 @@ Build the **fleet service** (on the single EC2) and the **web portal** (Next.js)
   - REST API for the portal: list devices, get device + latest telemetry, **send command** (publish to `krab/{thingName}/cmd`), and (used by Task 4) set desired image (shadow `desired.image`).
   - Runs as a service (systemd or docker-compose) on the same EC2 that hosts the portal and (Task 3) coturn. This is the one always-on box.
 
-- **Telemetry contract:** topic `krab/{thingName}/telemetry`; payload schema (health, IMU/pose, power, red flags); rate 1/min. The Task 1 fleet agent must conform; document the schema and topic here.
+- **Telemetry contract:** topic `krab/{thingName}/telemetry`; payload schema (health, IMU/pose, power, red flags); rate 1/min. The Task 1 `krabby agent` must conform; document the schema and topic here.
 
 - **Deploy:** Provision the EC2 + security groups + IAM (IoT connect/subscribe/publish, DynamoDB read/write) via CDK (Task 1 stack or a sibling). Deploy the fleet service + portal with a documented flow (systemd/docker-compose + a deploy script, or a githook/CI that builds and restarts on the EC2). Document "what must exist in AWS" (IoT Core + registry from Task 1, EC2, Cognito, IAM).
 

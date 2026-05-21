@@ -2,7 +2,7 @@
 
 ## 1. Narrative
 
-Integrate M7 WebRTC teleop into the fleet portal, reusing the **same per-device MQTT channel** the fleet uses for everything else. From device detail, "Teleop" starts a session (live streams + control). The browser exchanges WebRTC signaling (SDP/ICE) with the robot **through AWS IoT Core**: the fleet service bridges the browser to the robot's `teleop/{thingName}/signaling/in|out` topics; the robot's fleet agent hands signaling to the M7 WebRTC edge agent. Once connected, **media and control are peer-to-peer** over WebRTC (STUN, with coturn as TURN fallback) — no media touches MQTT. This is the unification: one internet mechanism per krab, no separate teleop transport.
+Integrate M7 WebRTC teleop into the fleet portal, reusing the **same per-device MQTT channel** the fleet uses for everything else. From device detail, "Teleop" starts a session (live streams + control). The browser exchanges WebRTC signaling (SDP/ICE) with the robot **through AWS IoT Core**: the fleet service bridges the browser to the robot's `teleop/{thingName}/signaling/in|out` topics; the robot's `krabby agent` hands signaling to the M7 WebRTC edge agent. Once connected, **media and control are peer-to-peer** over WebRTC (STUN, with coturn as TURN fallback) — no media touches MQTT. This is the unification: one internet mechanism per krab, no separate teleop transport.
 
 Reuse the M7 agent and protocol (data channel `krabby-control-v1`, `InputController` command struct). Demonstrate two concurrent sessions (two robots from one portal). M7 remains the source of truth for the streaming and control protocol; M10 only changes the signaling **transport** to MQTT and integrates the UI into the portal.
 
@@ -37,7 +37,7 @@ Reuse the M7 agent and protocol (data channel `krabby-control-v1`, `InputControl
 
 ## 5. Dependencies
 
-- **Task 1:** teleop signaling topics + per-device policy; fleet agent carries signaling to the M7 edge agent.
+- **Task 1:** teleop signaling topics + per-device policy; `krabby agent` carries signaling to the M7 edge agent.
 - **Task 2:** portal, fleet service, and the shared EC2 (hosts coturn) exist; teleop entry added to device detail/list.
 - **M7:** WebRTC edge agent on the robot and the streaming/control protocol (reuse as-is; the agent gains an MQTT signaling source alongside its existing WebSocket one).
 

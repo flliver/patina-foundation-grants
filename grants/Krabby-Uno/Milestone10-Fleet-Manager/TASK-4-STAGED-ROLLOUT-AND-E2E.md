@@ -43,7 +43,7 @@ This replaces Greengrass deployments and `failureHandlingPolicy: ROLLBACK` with 
 
 ## 5. Dependencies
 
-- **Task 1:** cohorts (thing groups), desired/reported image mechanism, fleet agent that invokes the M14 launcher.
+- **Task 1:** cohorts (thing groups), desired/reported image mechanism, the `krabby agent` that invokes `krabby update`.
 - **Task 2:** portal + fleet service (rollout UI and the set-desired/promote API live here).
 - **M14:** the launcher — `krabby-launcher`'s `krabby update` — does the actual pull/install; the firmware smoke test can be reused in the gate. Krabby image accepts joint commands (teleop/HAL path).
 - **Physical:** test harness Orin in `cohort-test` with calibration screen and target; one real krab for `cohort-canary`.
