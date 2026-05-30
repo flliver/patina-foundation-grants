@@ -27,7 +27,7 @@ Acceptance Criteria
 
 ## 1. Why monochrome, and what "color" means here
 
-Fletcher's intent is a color code for the motor dots — **blue** extend, **yellow** retract, **green** active-but-not-moving, **red** disconnected/unknown. The chosen display is the **SparkFun Qwiic OLED 1.3" (128×64)**, which is **1-bit monochrome** (SSD1306-class). It cannot show color. So the color *semantics* are kept but rendered as **distinct glyphs**:
+The end-state intent is a color code for the motor dots — **blue** extend, **yellow** retract, **green** active-but-not-moving, **red** disconnected/unknown. However, the chosen display is the **SparkFun Qwiic OLED 1.3" (128×64)**, which is **1-bit monochrome** (SSD1306-class). It cannot show color. So the color *semantics* are kept but rendered as **distinct glyphs**:
 
 | State | Intended color | Glyph |
 |---|---|---|
