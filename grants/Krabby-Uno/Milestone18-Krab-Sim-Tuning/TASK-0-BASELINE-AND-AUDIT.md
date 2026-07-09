@@ -1,5 +1,13 @@
 # Task 0 - Baseline eval harness and reward audit
 
+**Time estimate: ~1.5 dev days (range 1-2).** Sub-table:
+
+| Days | Sub-task |
+|------|----------|
+| 0.5 | Metrics logger wrapping the play loop (contact/joint/base/command logging; teacher and student play paths) |
+| 0.5 | Derived metrics + tripod score + gait-diagram render; cross-check air time against the sensor buffers |
+| 0.5 | Run the eval set, commit baselines; audit table + suspect verdicts + diagnosis |
+
 Goal: Prerequisite-scale measurement work before any training change. The reward terms already exist; this task adds no new rewards and trains nothing. It produces the one new piece of code the milestone runs on (a metrics logger wrapped around the existing play loop) and two documents (baseline metric reports, reward/config audit). Every later task is scored against these numbers, so this lands first. With AI assistance this is days, not a week.
 
 Outputs

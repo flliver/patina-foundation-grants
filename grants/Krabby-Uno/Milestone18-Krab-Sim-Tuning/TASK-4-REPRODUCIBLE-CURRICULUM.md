@@ -1,5 +1,14 @@
 # Task 4 - Reproducible from-scratch training curriculum
 
+**Time estimate: ~3 dev days (range 2-4), hands-on.** The from-scratch run itself is the long unattended pole of the whole milestone; budget its wall-clock (days of GPU time) separately from dev days. Sub-table:
+
+| Days | Sub-task |
+|------|----------|
+| 1 | Pipeline scripting: consolidate Task 1-3 configs, stage sequence, pinned seeds |
+| 0.5 | Gate thresholds committed + gate-check wiring to the harness |
+| 1 | From-scratch run supervision; distillation; student selection |
+| 0.5 | Baseline-vs-final metric report; READMEs + baseline tagging |
+
 Goal: The milestone deliverable. Today the curriculum is a sequence of hand-launched stage resumes with hand-picked checkpoints, documented only in README appendices. Consolidate the Task 1-3 configs into a documented training pipeline that goes from scratch to the final teacher and distilled student, gated by the Task 0 metrics. The upcoming prismatic and sim-to-real DR retrains both rerun this pipeline.
 
 Outputs
@@ -14,7 +23,6 @@ Acceptance Criteria
 - **4c** - One from-scratch run executed end-to-end; every gate passed; total wall-clock and hardware documented.
 - **4d** - Student distilled once from the final teacher (README §4.4 recipe, student MDP terrain aligned to the new training mix); selected by play + harness metrics, not the last log iteration.
 - **4e** - Final teacher and student committed to `runs/` with READMEs and tagged as the sim-to-real starting baseline.
-- **4f** - **Milestone deliverable:** baseline-vs-final metric report committed comparing student `9800` to the final student across the full Task 0 metric set, the Task 2 tracking grid, and the Task 3 payload curve.
 
 ---
 

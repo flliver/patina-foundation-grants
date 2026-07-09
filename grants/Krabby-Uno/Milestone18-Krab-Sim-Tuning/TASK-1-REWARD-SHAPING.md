@@ -1,5 +1,15 @@
 # Task 1 - Reward shaping for gait quality
 
+**Time estimate: ~3 dev days (range 2-4), hands-on.** The 4-6 training resumes run unattended between sessions and dominate calendar time, not dev time. Sub-table:
+
+| Days | Sub-task |
+|------|----------|
+| 0.5 | New reward stage class + mode wiring; air-time rework; launch first resume |
+| 0.5 | Stride-length term in `mdp/`; scoring |
+| 0.5 | Smoothness sweep + scoring; contact-schedule term if needed |
+| 1 | Carry the final term set up the teacher stack (2b2 resumes) + scoring |
+| 0.5 | Per-term changelog; checkpoint selection + README |
+
 Goal: Eliminate the tippy-tap micro-stepping pattern by fixing the reward terms Task 0 implicated, one measured change at a time. The end state is a reward stage where every term has a before/after metric justifying it; that config is what the reproducible curriculum (Task 4) trains from.
 
 Outputs

@@ -1,5 +1,14 @@
 # Task 2 - Omnidirectional command tracking
 
+**Time estimate: ~4 dev days (range 3-6), hands-on.** The widening resumes run unattended; the range's top end is for lateral-widening instability costing extra iterations. Sub-table:
+
+| Days | Sub-task |
+|------|----------|
+| 0.5 | Command model rework (sampled vy/wz, commanded yaw rate, retire forward-privileged terms) + envelope derivation from specs |
+| 1 | Curriculum config: staged widening schedule, dense direction sampling, in-episode resampling |
+| 1 | Omni eval in the harness: command-point table + direction sweep |
+| 1.5 | Widening resumes + scoring iterations to the capability gate; checkpoint README |
+
 Goal: A drivable policy: the robot goes where the command vector points, at the commanded speed, anywhere in the (vx, vy, wz) envelope, with the Task 1 gait quality holding throughout. That includes sustained sideways travel at fixed heading (the crab knee walk), which is the prerequisite gait for eventually traversing 30" doorways the robot cannot fit through frontally. The current command model cannot do any of this: `lin_vel_x`-only sampling, heading locked under P-control, lateral velocity penalized at -3.0.
 
 Outputs

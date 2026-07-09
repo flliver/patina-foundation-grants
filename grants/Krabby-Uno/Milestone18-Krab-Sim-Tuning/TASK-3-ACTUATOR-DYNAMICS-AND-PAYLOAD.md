@@ -1,5 +1,15 @@
 # Task 3 - Actuator dynamics realism and payload curriculum
 
+**Time estimate: ~4 dev days (range 3-5), hands-on.** Payload-stage retrains run unattended. Sub-table:
+
+| Days | Sub-task |
+|------|----------|
+| 1 | Limit derivation from lever geometry (angle range, load droop); drive config + randomized velocity/strength scale |
+| 0.5 | No-payload sanity eval; recovery retrain if the tighter limits break the gait |
+| 1 | Payload event config; staged mass curriculum launches (90 → 180 → 270 kg) |
+| 1 | Per-level scoring; max-stable-payload determination and limiting-factor writeup |
+| 0.5 | Derivation + config documentation in the training repo README |
+
 Goal: Two jobs in dependency order. First, make the sim's joint force/velocity limits match the real motors; with wrong limits, payload training produces a policy that either can't lift what the hardware can or relies on force the hardware doesn't have. Second, train a payload curriculum from 200 lb (~90 kg) working up toward the 600 lb (~270 kg) design target, and document the maximum payload the policy carries with stable gait.
 
 Real actuator specs and lever geometry (per joint, all 6 legs):
