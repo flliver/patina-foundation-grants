@@ -30,6 +30,7 @@ One review-driven revision and one agreed first-article hardware ECO incorporate
 - **Repositories:** `krabby-research` (v0.2 baseline, future firmware and integration), `patina-foundation-grants` (this grant), `krabby-contracts` (milestone ICA).
 - **RFQ document:** [`MCU-v0.3-RFQ.md`](MCU-v0.3-RFQ.md) — full scope of work, design questions, proposal requirements, and payment structure.
 - **Contractor response:** [`krab_v03_leg_board_RFQ_Response_v1_1.md`](krab_v03_leg_board_RFQ_Response_v1_1.md) — contractor's proposal, answers to all 15 design questions, and proposed schedule.
+- **Client design notes:** [`DESIGN-NOTES.md`](DESIGN-NOTES.md) — 21-item watch list of hardware decisions, lessons from the v0.2 boards, and open questions to resolve during schematic and layout reviews.
 - **v0.2 baseline design files:** `hardware/Uno-v0.2/power-board` (power board being redesigned), `hardware/Uno-v0.2/shield` (shield being eliminated), `hardware/Uno-v0.2/motors`.
 - **Key components:** STM32G474RET6 (64-pin MCU, FDCAN, 18 timers); STSPIN9P21 (full-bridge motor driver, ×3 per board); MCP2562FD (CAN-FD transceiver); XT30 (per-motor power), XT60 (incoming power); 4-pin JST-GH (CAN daisy-chain).
 - **Bus leader:** Seeed reComputer Robotics J4012 (Jetson Orin NX), tapping CAN bus mid-chain.
