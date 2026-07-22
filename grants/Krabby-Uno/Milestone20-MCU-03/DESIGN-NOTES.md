@@ -46,6 +46,10 @@ Things that came up during v0.2 bring-up that need to carry forward into the v0.
 
 21. **Miswiring burn-out audit.** Review all connector interfaces (Orin/CAN, motor power input, motor output, POT/HALL) and identify every realistic miswiring scenario that could damage the board, the Orin, or the motors. Add protection for each, and let me know if there are any non-protectable situations.
 
+22. **Validate 5V vs 3.3V on hall encoders/potentiometers** My current motors have 5V going to their hall encoder/potentiometer. The new board will be base 3.3V, which should work fine with the potentiometers still (they are just standard 10kohm POTs). The encoders however all require 5V, so we will have to have the board powered directly from the 24V/48V input, step down to 5V, branch off for the motor encoders, step down again to 3.3V for the STM. 
+
+23. **Ensure proper voltage noise isolation** You have to power the board from the fairly noisy 24V/48V battery, that's also serving the motors. The current board does a reasonable job of isolating those two, but was able to cheat by getting 5V from the ribbon cable. Instead, you'll need to get the 5V by downconverting the 24/48V, I believe w/ a buck converter. You need to properly place and size capacitors at each of these areas so that by the time the 5V reaches the motor encoder/pot it's clean and very stable, otherwise I will see the leg 'moving' every time some other leg pulls power, because of the voltage drop. Same for the 3.3V, it needs to stay stable so the STM chip doesn't brown out. Please be careful and pay attention to details here, researching and using reference architectures where appropriate to select the right capacitor layout, size, etc.
+
 ---
 
 ## Claude Fable Design Suggestions
