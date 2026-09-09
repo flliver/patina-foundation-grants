@@ -8,15 +8,10 @@ Outputs
 - A `SimulatedRobotConfig` binding the 6 REV-3 slots' drive pins to actuator devices, and a `RobotCore` game loop that reads recorded pin state, drives joints, and steps physics.
 - Tests that define a 6-motor config, jog each leg through extend, retract, and hold, and assert the linked Isaac joint moves in the correct direction at the correct proportional speed.
 
-(Acceptance criteria and time estimate for this task live in [OVERVIEW.md](OVERVIEW.md#task-1---robotcore-loop--digitalwrite-drive-the-actuators).)
 
 ---
 
-Note: line numbers are pointers to the right function and may drift. Position feedback, the closed-loop P-controller, and calibration all depend on the read path and arrive in Task 2.
-
----
-
-## 1. The output seam — the pin writes `driveActuator` makes
+## 1. Output pin function handling
 
 Everything the drive path does to hardware goes through a handful of Arduino output calls in `firmware/arduino/actuator_manager.h`. The one that matters is `LinearActuator::driveActuator(int pwm, int pwmDeadband)` (~L224-244):
 
@@ -73,6 +68,8 @@ Two pieces are needed. First, a minimal `Arduino.h` shim implementing the output
 The PWM to motion model is linear. With `cmd` in [−255, 255], map to a joint target using one of the IsaacLab Articulation setters from section 5 with `speed = (cmd / 255) × max_joint_speed`, so −255 is a full-speed retract, +255 a full-speed extend, +122 roughly 48% extend, and 0 or EN low a hold. Real actuators behave nonlinearly, and modeling that is a later milestone.
 
 ## 5. Driving the joint in IsaacSim
+
+NOTE: Check with @nickmagus on this, these may be updated by the time this milestone is executing.
 
 The crab robot is an Articulation defined by `assets/crab_simple.usda` and configured in `parkour/parkour_tasks/parkour_tasks/crab_hexapod_task/config/crab_hex/crab_hex_scene_cfg.py` (~L67-147). Each leg has 3 revolute joints, and the 18 joint names follow `{LEG}_{Segment}_RevoluteJoint` with LEG in {FL, FR, ML, MR, RL, RR}:
 

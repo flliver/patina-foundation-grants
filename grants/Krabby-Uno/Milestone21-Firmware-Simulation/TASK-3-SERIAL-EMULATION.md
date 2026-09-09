@@ -22,6 +22,8 @@ Note: line numbers are pointers to the right function and may drift.
 
 `firmware/krabby_mcu.py` (`KrabbyMCUSDK`) is the host-side driver. It opens `serial.Serial()` by path (`connect`, ~L80-109), holds DTR false to avoid resetting a real board, sleeps around 5 s for boot and election, spawns a reader thread (`_reader_loop`, ~L111-155), and immediately sends `H\n`. The simulated firmware implements both directions of this contract.
 
+NOTE: This election is getting removed by work James is doing, and should just be a manual setting on the board EEPROM I believe. Please check and simplify as needed.
+
 Host to MCU, newline-terminated ASCII:
 
 | Bytes | Meaning | Firmware parse (`arduino.ino`) |
