@@ -65,7 +65,29 @@ Fold the specifics into the sentence that introduces them:
     output calls: pinMode, digitalWrite, analogWrite, and millis for
     the loop clock.
 
+Lead with the point. The first sentence of a narrative or section states the job in plain words, and what the job requires follows as an inline numbered list:
+
+    Simulate the three SEN0581s in Isaac and pipe their depth through
+    HAL into the observations the AI model receives. This requires:
+    1) the observation format must be extended to accept depth-only
+    cameras, 2) the existing sim cameras ray cast against the terrain,
+    bypassing the robot's body, and must be replaced with rendered
+    cameras so the legs show up.
+
+Scene-setting sentences that defer the point ("Two pieces of groundwork come first.") are an anti-pattern: delete them and let the numbered list carry the structure.
+
+Explain a technical constraint as cause and effect in common words. "The sim cameras must be RTX render cameras because RayCaster sensors only intersect static meshes" tells the reader nothing unless they already know both terms; "the existing sim cameras ray cast against the terrain, bypassing the body, and need to be fixed to show the legs" states the problem and the fix directly. Symbol names, tool names, and codec details belong in the task documents next to the code they name; the overview stays in common words.
+
+Prefer the simplest validation that proves the result. A small script a person runs and confirms ("walk the robot and check the legs are visible in each camera") beats a measurement harness with tolerances and committed reference data, unless the check must run unattended in CI.
+
 * Leave out bolded text. 
+* Leave out em-dashes; use a comma, colon, parentheses, or a new sentence.
+* State ideas forward: "replace the hardcoded cameras with a list of cameras", never "a table the new cameras join".
+* Do not start sentences with "And".
+* In Why is this Important?, each bullet states its reason once; restating the same point in different words within a bullet is an anti-pattern.
+* No personal names. Results are "recorded in the task report", not reported to a person.
+* Show counts instead of asserting them: "9 streams: an RGB and a depth view from each existing camera, a depth view from each new one", not "the 9 streams now offered".
+* Use a collective term only when it names a real code structure (`JETSON_SENSOR_CATALOG`), never as invented prose vocabulary.
 * Avoid the constructions that read as machine-written. The worst offenders are `just...`, a `Scope:` prefix standing in for a sentence, and the "X, not Y" contrast where a plain positive statement works.
 * Prefer concrete numbers, real symbol names, and actual paths over descriptions of them.
 * Avoid duplication and restatement across narrative, AC, and tasks. After writing the full doc, review for duplicity and move each concept to where it makes the most sence to be.

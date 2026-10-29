@@ -23,39 +23,33 @@ Task 1's friction log already carries the fields this needs: blocking, cost with
 
 The M21 hand-offs enter here too: publishing the IsaacSim image, detecting an absent MCU and offering the simulator, GPU capability validation before launch, and IoT-based resume. They are scored the same way as everything else, and it is a legitimate outcome for them to fall below the cut line.
 
-Priority is impact over effort. Impact combines how often the friction is hit with what it costs each time, which is why the cost field records recurrence: a thirty-second annoyance on every bring-up costs more per year than a two-hour problem hit once, and any ordering that reads severity alone will rank them the wrong way round. Weight items that block bring-up above items that merely slow it, since a blocker stops a new robot or a new engineer entirely.
+Priority is impact over effort, where impact combines how often the friction is hit with what it costs each time: a thirty-second annoyance on every bring-up costs more per year than a two-hour problem hit once. Weight items that block bring-up above items that merely slow it, since a blocker stops a new robot or a new engineer entirely.
 
-Sort by priority, then sanity-check the top of the list by hand. An ordering that looks obviously wrong at the top usually has a frequency judgment that needs revisiting rather than an exception that needs carving.
+Sort by priority, then sanity-check the top of the list by hand; an ordering that looks wrong at the top usually means a frequency judgment needs revisiting.
 
 ## 2. Packing the bucket
 
-Pack top down against the effort estimates until the total reaches roughly 60 hours, and mark the line. Within 10 percent is close enough, since the estimates are not precise enough to justify more care than that.
+Pack top down against the effort estimates until the total reaches roughly 60 hours, and mark the line; within 10 percent is close enough given the precision of the estimates.
 
-Two adjustments are worth making by hand. Group hardware-access items so they cluster, because the setup cost is real and the estimates usually omit it. And check whether any item immediately below the line is a prerequisite for one above it, in which case both move or neither does.
+Two adjustments are worth making by hand: group hardware-access items, since the setup cost is real and the estimates usually omit it, and check whether any item just below the line is a prerequisite for one above it, in which case both move or neither does.
 
-Leave everything below the line in the document with its scores intact. The list is a deliverable in its own right, and the remainder is what the next milestone starts from.
+Leave everything below the line in the document with its scores intact; the remainder is what the next milestone starts from.
 
 ## 3. Working order
 
-Work top down. The ordering is the product of the scoring, and departing from it discards the reason the scoring was done.
+Work top down; departing from the ordering discards the reason the scoring was done.
 
-Two departures are legitimate and should be recorded when taken. Hardware-access items can be pulled forward or grouped so a session at the bench covers several. And an item can be pulled forward when a later item depends on it, which the packing pass should have caught but will sometimes miss.
+Two departures are legitimate when recorded: hardware-access items can be grouped so one bench session covers several, and an item can be pulled forward when a later item depends on it and the packing pass missed the dependency.
 
-Everything else stays in order. If an item near the top turns out to be a bad idea on closer inspection, that is a finding: record why, mark it out of scope with the reason, and move on rather than quietly skipping it.
+If an item near the top turns out to be a bad idea on closer inspection, record why, mark it out of scope, and move on rather than quietly skipping it.
 
-AI-suited items are worth batching. They were marked because they are specifiable from the entry alone, and running several through an agent in one pass is more efficient than interleaving them with work that needs the bench. Each still needs its verification step from section 5, since an agent completing an item is a different claim from the friction being gone.
+AI-suited items are worth batching: running several through an agent in one pass is more efficient than interleaving them with work that needs the bench. Each still needs its verification step from section 5.
 
 ## 4. When an estimate is wrong
 
-Estimates will be wrong. What matters is what happens next.
+An item that runs over its estimate is finished, split, or returned. Finish it if the overrun is modest and the item is nearly done. Split it if part of it delivers value on its own: land that part and return the rest to the list as a new entry with its own estimate. Return it if it turns out substantially larger or depends on something unavailable, with a revised estimate and a note on what the original missed — returning early beats spending the bucket discovering it.
 
-Finish it if the overrun is modest and the item is nearly done. Absorb it and record the actual hours.
-
-Split it if the item is larger than expected but part of it delivers value on its own. Land that part, return the rest to the list as a new entry with its own estimate, and note the split.
-
-Return it if the item turns out to be substantially larger or to depend on something unavailable. Put it back with a revised estimate and a note on what the original missed. Returning an item is a normal outcome, and returning it early beats spending the bucket discovering it.
-
-Record actual hours against every item, including returned ones. That record is what makes the next milestone's estimates better, and it is the only way to tell afterwards whether the effort estimates were systematically optimistic.
+Record actual hours against every item, including returned ones; that record is what tells the next milestone whether these estimates were systematically optimistic.
 
 ## 5. Verifying a fix removed friction
 
@@ -73,7 +67,7 @@ Update the friction log entry as well as the list entry. The log is what the clo
 
 End the bucket by bringing up a robot cold, following the current documentation, and writing the command sequence the way Task 1 did.
 
-Compare the two sequences directly: how many commands, how many undocumented steps, how many manual interventions, and how long it took. State the result plainly, including the case where it barely moved. A milestone that removed six of thirty steps has a number the next one can build on; a milestone reporting qualitative improvement has nothing.
+Compare the two sequences directly: how many commands, how many undocumented steps, how many manual interventions, and how long it took. State the result as numbers, including the case where it barely moved.
 
 Run the Task 1 bench test at the close as well. The bucket changes the install path, the firmware path, and the bringup path, which are exactly what the bench asserts, so a green run is what shows the improvements did not break the thing they were smoothing.
 

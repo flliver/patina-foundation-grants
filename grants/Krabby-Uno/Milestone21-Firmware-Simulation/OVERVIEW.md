@@ -10,7 +10,7 @@ This milestone closes that gap with a second implementation of the Arduino hardw
 
 The core abstraction is a `SimulatedRobotConfig`, which composes a robot by binding every pin from `firmware/arduino/board_pins.h` to a defined actuator device. It attaches to a `RobotCore` game loop that watches pin transitions, finds the device on each pin, and executes the mapped Isaac command, so the `EN` and `PWM_R`/`PWM_L` writes made by `ActuatorManager::driveActuator()` become a linear actuator extending or retracting at the commanded speed.
 
-From that seam the milestone builds up in stages. The read side adds `digitalRead`, `analogRead`, EEPROM, the hall encoder, `millis`, and a physics-derived current-sense signal that rises as a foot loads the ground. The serial command and telemetry protocol lets the existing krabby-SDK drive the simulated firmware and read telemetry back, and the inter-board serial links put three simulated Arduinos in control of all 18 legs in a single IsaacSim scene. Simulators for the Milestone 16 I2C sensors cover the IMU, OLED health screen, and battery monitors. Finally, the Isaac HAL backend swaps its direct joint-command path for the simulated firmware, so the existing isaacsim image drives a simulated krab through the real control loop and the fleet manager can teleoperate it.
+From there the milestone builds up in stages. The read side adds `digitalRead`, `analogRead`, EEPROM, the hall encoder, `millis`, and a physics-derived current-sense signal that rises as a foot loads the ground. The serial command and telemetry protocol lets the existing krabby-SDK drive the simulated firmware and read telemetry back, and the inter-board serial links put three simulated Arduinos in control of all 18 legs in a single IsaacSim scene. Simulators for the Milestone 16 I2C sensors cover the IMU, OLED health screen, and battery monitors. Finally, a third HAL implementation called `FullSimulator` puts krabby-SDK and the firmware in the call path for a normal image launch, so a simulated krab can register with the fleet manager and be teleoperated.
 
 The output is a firmware you can run, drive, and observe entirely in software.
 
@@ -24,7 +24,7 @@ The output is a firmware you can run, drive, and observe entirely in software.
 
 ## Tasks
 
-Total: ~30 working days, roughly 5–6 weeks part-time at 20–30 hours per week. Implementation detail and exact code locations live in the per-task files linked below; the acceptance criteria are here.
+Total: ~27 working days, roughly 4–5 weeks part-time at 20–30 hours per week. Implementation detail and exact code locations live in the per-task files linked below; the acceptance criteria are here.
 
 ### Task 1 - RobotCore loop + digitalWrite: drive the actuators → [TASK-1-PIN-SIMULATION-INTERFACE.md](TASK-1-PIN-SIMULATION-INTERFACE.md)
 
@@ -45,26 +45,27 @@ This task also stands up the minimal host build that does not exist today, cover
 - 1e — The 6 motors are independently addressable: driving one leg moves only that leg's joint, and the pin→device→joint resolution is correct for all six slots.
 - 1f — Integration tests jog each of the 6 legs through extend, retract, hold, and partial speed, asserting the linked Isaac joint moves in the right direction at the right proportional speed, verified by inspecting the sim joint directly.
 
-#### Time estimate (~7 days)
+#### Time estimate (~6 days)
 
 | Days | Sub-task title |
 |------|----------------|
-| 1.5 | Minimal output shim (`pinMode`/`digitalWrite`/`analogWrite`/`millis`) and compile the actuator drive path |
-| 1.5 | Host library boundary (C-ABI or pybind11) so Python drives the real C++ actuator layer |
+| 1 | Minimal output shim (`pinMode`/`digitalWrite`/`analogWrite`/`millis`) and compile the actuator drive path |
 | 1 | `SimulatedActuator` (drive pins → Isaac joint) and signed PWM→speed model |
 | 0.5 | `SimulatedRobotConfig` binds the 6 REV-3 drive-pin sets to actuators and joints |
 | 2 | `RobotCore` game loop and IsaacSim integration: advance, read pin writes, drive joints, step physics |
-| 0.5 | Integration tests (6 legs jog: extend, retract, hold, partial) and architecture doc |
+| 0.5 | Integration tests (6 legs jog: extend, retract, hold, partial) |
 
 ### Task 2 - digitalRead / analogRead: sensors and current-sense → [TASK-2-SENSORS-AND-CURRENT-SENSE.md](TASK-2-SENSORS-AND-CURRENT-SENSE.md)
 
 #### Narrative
 
-Task 2 builds the read side, `analogRead` and `digitalRead`, on top of Task 1's drive loop. The first read is `analogRead(pinPot)`, which returns each joint's position on the ADC scale and closes the firmware's control loop, bringing `getPos()`, the `update()` P-controller driven by `setTarget`, and the auto-calibration state machine into play for the first time.
+Task 2 builds the read side, `analogRead` and `digitalRead`, on top of Task 1's drive loop. The first read is `analogRead(pinPot)`, which returns each joint's position on the ADC scale and closes the firmware's control loop, bringing `getPos()`, the `update()` P-controller driven by `setTarget`..
 
 Each motor's pot also carries per-motor calibration variance, deterministic but drawn at `SimulatedRobotConfig` instantiation from a min-stop range of roughly 80–220 and a max-stop range of roughly 800–1000, mimicking manufacturer POT variance so auto-calibration discovers different limits per motor. Alongside it, `digitalRead(pinEn)` gives the EN read-back, the hall edge counter is a native shim that emulates `saf` from joint motion scaled so a full min-to-max travel matches the real robot's triggers-per-travel, `EEPROM` is an in-memory byte array holding `CalData` and role, and `millis()` is a monotonic sim clock.
 
-The headline deliverable is a current-sense signal derived from IsaacSim physics. `analogRead(pinIS)` is mapped from the joint reaction wrench (`robot.data.body_incoming_joint_wrench_b`) at the appropriate leg link, resolved via `robot.find_bodies()`, with the per-joint actuator `applied_effort` as a cheaper cross-check. The scale is tuned low and by eye: 0 for no movement, around 2 for moving without ground contact, 4 for basic ground contact, rising to roughly 30 of 1023 when a leg lifts significant force and offloads the other legs. Validation is unit tests plus a manual tuning harness, a windowed single-env viewer where you perturb a leg and watch the wrench, both reading the sim directly. The goal is sensible, tunable outputs; physical fidelity belongs to a later milestone.
+The headline deliverable is a current-sense signal derived from IsaacSim physics. `analogRead(pinIS)` is mapped from the joint reaction wrench (`robot.data.body_incoming_joint_wrench_b`) at the appropriate leg link, resolved via `robot.find_bodies()`, with the per-joint actuator `applied_effort` as a cheaper cross-check. The scale is tuned low and by eye: 0 for no movement, around 2 for moving without ground contact, 4 for basic ground contact, rising to roughly 30 of 1023 when a leg lifts significant force and offloads the other legs. Validation is unit tests plus a manual tuning harness, a windowed single-env viewer where you perturb a leg and watch the wrench, both reading the sim directly. 
+
+The overall goal is that we're able to put move the limb in simulation, see appropriate EN, POT, and current sense values, as well as a store calibration data in a simulated EEPROM.
 
 #### Acceptance Criteria
 
@@ -74,19 +75,18 @@ The headline deliverable is a current-sense signal derived from IsaacSim physics
 - 2d — The hall edge counter (`hallHwInit`/`hallHwGetEdgeCount`) is a native shim that emulates edge counts from simulated joint velocity, with no AVR register or ISR emulation. `saf` advances monotonically as a joint moves and holds when it stops, and the total count across a full min-stop to max-stop travel matches the real robot. Obtain the average encoder triggers between stops from James, or read them off a real robot via the fleet manager.
 - 2e — Task 2 completes the read and timing Arduino surface the actuator/sensor layer needs on top of Task 1's output shim. Sweep `actuator_manager.h` and `hall_hw.cpp` for any remaining Arduino symbol (`analogRead`, `digitalRead`, `EEPROM`, the hall counter; `millis` already comes from Task 1's shim) and give each a sim implementation, so the simulated actuator and sensor layer imports no real Arduino. `Serial` is Task 3 and `Wire`/I2C is Task 4, the only Arduino APIs remaining after this task.
 - 2f — `analogRead(pinIS)` returns a physics-derived current value, hooking `robot.find_bodies()` and the joint reaction wrench (`body_incoming_joint_wrench_b`) at the appropriate leg link (knee or hip), mapped onto the 0–1023 ADC scale.
-- 2g — The current-sense scale is tuned to 0 for no movement, around 2 for moving without ground contact, 4 for basic ground contact, and roughly 30 of 1023 when a leg lifts significant force and begins to pick up the body. Behavior is changeable by modifying the output mapping function.
+- 2g — The current-sense scale is tuned to 0 for no movement, around 2 for moving without ground contact, 4 for basic ground contact, and roughly 30 of 1023 when a leg lifts significant force and begins to pick up the body. Behavior is changeable by modifying the output mapping function. These should be settable via a config function, so that we can have per-motor config definitions.
 - 2h — Current-sense, POT, and hall values are validated via integration tests: move a leg via direct PWM pin commands and show the POT, hall, and current values change as expected by round-tripping through IsaacSim.
 
-#### Time estimate (~7 days)
+#### Time estimate (~6 days)
 
 | Days | Sub-task title |
 |------|----------------|
 | 1 | `analogRead(pinPot)` position read (closes the control loop) and `digitalRead` EN read-back |
 | 0.5 | Per-motor pot calibration variance and EEPROM (`CalData`/role, in-memory) |
 | 1 | Hall edge synthesis scaled to James's real-robot triggers-per-travel; confirm `millis`/timing tracks sim time |
-| 1 | Manual wrench-tuning harness: windowed single-env viewer, leg perturbation, live wrench readout |
-| 2.5 | Physics current-sense: wrench (`body_incoming_joint_wrench_b`) → `pinIS` mapping; tune 0 / ~2 / 4 / ~30 by eye |
-| 1 | Integration tests (pot read and variance, digitalRead, EEPROM, hall and travel count, millis, current-sense breakpoints) |
+| 2 | Physics current-sense: wrench (`body_incoming_joint_wrench_b`) → `pinIS`; manual tuning harness; tune 0 / ~2 / 4 / ~30 |
+| 0.5 | Integration tests (pot read and variance, digitalRead, EEPROM, hall and travel count, millis, current-sense breakpoints) |
 
 ### Task 3 - Serial emulation and three-board firmware → [TASK-3-SERIAL-EMULATION.md](TASK-3-SERIAL-EMULATION.md)
 
@@ -94,9 +94,11 @@ The headline deliverable is a current-sense signal derived from IsaacSim physics
 
 Task 3 extends the simulated firmware to speak the serial protocol end to end, so the existing krabby-SDK (`firmware/krabby_mcu.py`) can connect to the simulated MCU, send commands, and receive telemetry back, closing the full command-to-motion-to-telemetry loop against IsaacSim. Because the SDK opens a port by path and honors `KRABBY_MCU_PORT`, the simulated MCU attaches through a virtual serial device — a PTY, or a virtual COM pair on Windows — leaving the SDK unchanged.
 
-The simulated firmware parses the full host-to-MCU command set (`T` targets, `B` batch jog, `J` single jog, `C` calibrate, `H` hold, `V` version) and emits role-prefixed telemetry lines in the exact wire format on the roughly 50 ms tick. Since Tasks 1 and 2 already produce real drive and sensor values, wiring serial makes them flow to the SDK, so `python -m firmware.gui` works as-is: move the robot and watch the "Cur" and "Pot" columns respond.
+The simulated firmware parses the full host-to-MCU command set (`T` targets, `B` batch jog, `J` single jog, `C` calibrate, `H` hold, `V` version) and emits role-prefixed telemetry lines in the exact wire format on the roughly 50 ms tick, exactly like it does on the real HW today. Since Tasks 1 and 2 already produce real drive and sensor values, wiring serial makes them flow to the SDK, so `python -m firmware.gui` works as-is: move the robot and watch the "Cur" and "Pot" columns respond.
 
-The task then emulates the inter-board serial links so three simulated Arduinos cooperate in one IsaacSim scene, driving all 18 legs. That means wiring each emulator instance's `Serial1` and `Serial2` to its peers so the real `determineRole()` election runs with one FRONT leader and LEFT/RIGHT followers, having the leader forward each follower's telemetry line verbatim and relay commands, and binding the three boards to three disjoint sets of six joints of the shared crab Articulation. A single-leader shortcut, where one emulator owns all 18 joints and emits all three role-prefixed lines, is a valid stepping stone before the true three-instance election exercises the multi-board code paths.
+The task then emulates the inter-board serial links so three simulated Arduinos cooperate in one IsaacSim scene, driving all 18 legs. That means wiring each emulator instance's `Serial1` and `Serial2` to its peers so the real `determineRole()` election runs with one FRONT leader and LEFT/RIGHT followers, having the leader forward each follower's telemetry line verbatim and relay commands, and binding the three boards to three disjoint sets of six joints of the shared crab Articulation. 
+
+A single-leader shortcut, where one emulator owns all 18 joints and emits all three role-prefixed lines, is a valid stepping stone before the true three-instance election exercises the multi-board code paths, if necessary, but the output goal of three boards communicating over simulated serial lines lets us test the whole serial communication across boards e2e.
 
 #### Acceptance Criteria
 
@@ -110,16 +112,16 @@ The task then emulates the inter-board serial links so three simulated Arduinos 
 - 3h — The three MCU instances are each bound to a disjoint set of 6 joints of the same 18-joint crab in one IsaacSim scene, and commanding any of the 18 legs through the SDK moves exactly that leg.
 - 3i — End-to-end current-sense in the GUI: `python -m firmware.gui` against the simulated MCU shows the "Cur" column responding as legs load the ground, rising on contact, reaching roughly 30 when lifting the body, and resting near 0, with serial telemetry staying nominal and all fields parsing via `joint_telemetry.py`.
 
-#### Time estimate (~9 days)
+#### Time estimate (~4 days)
 
 | Days | Sub-task title |
 |------|----------------|
-| 2 | Simulated `Serial`/`HardwareSerial` backed by a virtual serial device; SDK connects via `KRABBY_MCU_PORT`/PTY, including the Windows virtual COM path |
-| 1 | Host-to-MCU command parse (`T`/`B`/`J`/`C`/`H`/`V`); telemetry emitted in exact wire format on the 50 ms tick |
-| 1 | Full round-trip test: command → Isaac motion → telemetry → `mcu.joints[...]`; `V`/`H`/`C` behaviors |
-| 2.5 | Three-instance role election over emulated inter-board serial; leader telemetry forwarding and command relay |
-| 1.5 | Bind three boards to 18 joints in one scene; per-leg addressability test across all 18 |
-| 1 | GUI current-sense end-to-end (`python -m firmware.gui`) and telemetry-nominal check |
+| 1 | Simulated `Serial`/`HardwareSerial` backed by a virtual serial device; SDK connects via `KRABBY_MCU_PORT`/PTY |
+| 0.5 | Host-to-MCU command parse (`T`/`B`/`J`/`C`/`H`/`V`); telemetry emitted in exact wire format on the 50 ms tick |
+| 0.5 | Full round-trip test: command → Isaac motion → telemetry → `mcu.joints[...]`; `V`/`H`/`C` behaviors |
+| 0.5 | Three-instance role election over emulated inter-board serial; leader telemetry forwarding and command relay |
+| 1 | Bind three boards to 18 joints in one scene; per-leg test across all 18 using standard krabby-cli commands |
+| 0.5 | GUI current-sense end-to-end (`python -m firmware.gui`) and telemetry-nominal check |
 
 ### Task 4 - I2C sensor simulators (IMU, OLED, battery) → [TASK-4-I2C-SENSOR-SIMULATORS.md](TASK-4-I2C-SENSOR-SIMULATORS.md)
 
@@ -141,46 +143,43 @@ Two dependencies must be resolved first, and the task flags them explicitly. The
 - 4f — Tests exercise each simulated sensor end-to-end through the firmware, from I2C call to firmware read to telemetry or OLED output, without hardware.
 - 4g — Absent or failed sensors leave the simulated firmware running: init failure sets the invalid flag and control continues, matching M16's non-fatal-init requirement.
 
-#### Time estimate (~3 days)
+#### Time estimate (~2 days)
 
 | Days | Sub-task title |
 |------|----------------|
-| 0.5 | Resolve dependencies: locate and vendor John's OLED simulator; confirm M16 firmware state and shared I2C contract |
-| 1 | Simulated `Wire`/I2C layer for `0x68`/`0x3D`/`0x40`/`0x41`; graceful absent-device handling |
-| 1 | Simulated BMI270 → `IMU` segment; simulated INA228 ×2 → `BATT` frame; hook OLED simulator to render live state |
+| 1.0 | Simulated `Wire`/I2C layer for `0x68`/`0x3D`/`0x40`/`0x41`; graceful absent-device handling |
+| 0.5 | Simulated BMI270 → `IMU` segment; simulated INA228 ×2 → `BATT` frame; hook OLED simulator to render live state |
 | 0.5 | End-to-end tests per sensor through the firmware; non-fatal-on-missing check |
 
-### Task 5 - Swap the Isaac command path to the simulated firmware → [TASK-5-HAL-FULLSIMULATOR.md](TASK-5-HAL-FULLSIMULATOR.md)
+### Task 5 - HAL `FullSimulator` backend and fleet integration → [TASK-5-HAL-FULLSIMULATOR.md](TASK-5-HAL-FULLSIMULATOR.md)
 
 #### Narrative
 
-The Isaac backend already supplies everything around the command path. The existing isaacsim image spawns the scene, the HAL serves observations, cameras, and video through it, and a simulated krab registers with the fleet manager and can be teleoperated. That all stays as it is.
+Task 5 rewires the HAL to add a third implementation alongside the existing Jetson ("Krabby") and Isaac backends: a `FullSimulator` server that loads and executes the entire firmware layer in the call path, running krabby-SDK to simulated firmware to simulated pins to IsaacSim. This replaces the behavior of today's Isaac backend, which converts a `JointCommand` straight into joint position targets and never touches the firmware.
 
-Task 5 changes where joint commands go. Today `IsaacSimMCUSDK.apply_command` turns a `JointCommand` straight into position targets that the env action term applies, leaving the firmware and krabby-SDK out of the path. This task replaces that step with the three-instance simulated firmware from Task 3, so a command travels through krabby-SDK, the simulated serial link, the firmware control loop, and the simulated pins before it becomes the env action tensor.
+`FullSimulator` reuses the Isaac observation half by subclassing `IsaacSimHalServer`, leaving `set_observation`, `_cache_references`, and the sensor interface unchanged, and overrides only the command path. A `JointCommand` is converted to firmware commands (radians to normalized, as the Jetson adapter does), the simulated firmware's `ActuatorManager` control loop runs, its simulated pins produce per-joint drive, and that becomes the `env.step` action tensor with the same shape today's Isaac `apply_command` returns. The backend is selected the way the others are, through a `krabby-hal-server-fullsim` console script or a `--backend fullsim` flag in the sim launcher.
 
-The firmware instances attach to the IsaacSim env the server already owns and bind to the same 18 joints the direct path drives today, so one scene and one process remain.
-
-What is left is confirming the swap holds up. An integration test drives a teleop command through the new path, and the existing fleet registration and teleop flow runs against it. Since the fleet path has never run with the firmware in the loop, the task expects to surface and fix a few missing pieces, or document them as M23 work. Publishing a sim image to ECR or S3 and auto-detecting an absent krab to pull it remain M23.
+The task then demonstrates, via an integration test, that the image can be spun up, the simulator launched through the new interface, and the simulated krab registered with the fleet manager and teleoperated, reusing the existing teleop signaling. Because the fleet and teleop stack has never run against a firmware-in-the-loop simulator, the task expects to surface and fix a few missing pieces, or document them clearly as M23 work. Heavy fleet productization — publishing a sim image to ECR/S3, auto-detecting "no krab attached" to pull the SIM image, GPU validation, and IoT resume — is deferred to M23. Task 5 proves the path works and stops there.
 
 #### Acceptance Criteria
 
-- 5a — The Isaac backend gains a firmware-in-the-loop command path that replaces `IsaacSimMCUSDK.apply_command`: a `JointCommand` goes through krabby-SDK to the simulated firmware, and the resulting simulated pin drive becomes the `env.step` action tensor, in the same shape the direct path returns today.
-- 5b — The three simulated firmware instances from Task 3 are constructed against the IsaacSim env the server already owns and bound to the same 18 joints, with no second scene and no second process.
-- 5c — Observations are untouched: `IsaacSimHalServer.set_observation`, `_cache_references`, the sensor interface, cameras, and video all behave as they do today.
-- 5d — The path is selectable, through a flag or console script, and choosing it leaves existing Isaac and Jetson launches unaffected.
-- 5e — An integration test drives a teleop command end to end — krabby-SDK, simulated serial, firmware control loop, simulated pins, `env.step` — and asserts the commanded joint moves and observations reflect it.
-- 5f — The simulated krab registers with the fleet manager, appears in the UI, and is teleoperable through the existing isaacsim image with the firmware in the loop.
-- 5g — Any missing pieces on this untested path are identified and fixed, or documented as deferred to M23.
+- 5a — A `FullSimulatorHalServer(HalServerBase)` exists in `hal/server/fullsim/` and implements the practical HAL contract: `set_observation(self)` building a valid `HardwareObservations` and calling `super().set_observation(...)`, a command path that consumes a `JointCommand`, `get_sensor_interface()`, and `close()`.
+- 5b — The command path puts both krabby-SDK and the firmware in the loop: a `JointCommand` is converted to firmware commands (radians to normalized, as the Jetson adapter does), the simulated firmware's `ActuatorManager` control loop runs, its simulated pins produce per-joint drive, and that becomes the `env.step` action tensor, replacing the direct `JointCommand`-to-position-target passthrough of `IsaacSimMCUSDK`.
+- 5c — Observations still come from the Isaac env (joint state, base state, cameras, contacts), reusing `IsaacSimHalServer.set_observation` and `_cache_references` so the observation half is unchanged.
+- 5d — The backend can be selected and launched: a `krabby-hal-server-fullsim` console script, or a `--backend fullsim` flag in the sim `main.py`, constructs and runs the new server, and existing Jetson and Isaac launches are unaffected.
+- 5e — An integration test spins up the simulator through the new interface and drives the full path end to end (command in, firmware loop, sim pins, `env.step`, observation out), asserting a teleop command moves the simulated robot and observations reflect it.
+- 5f — The simulated krab registers with the fleet manager, appears in the UI, can be connected to, and is teleoperable. When the sim is stopped it shows offline, with manual restart via the krabby CLI.
+- 5g — Any missing pieces on this untested path are identified and fixed, or clearly documented as deferred to M23, since the fleet and teleop path has not been exercised against the firmware-in-the-loop simulator before.
 
-#### Time estimate (~4 days)
+#### Time estimate (~5 days)
 
 | Days | Sub-task title |
 |------|----------------|
-| 1 | Firmware-in-the-loop command SDK replacing `IsaacSimMCUSDK`: krabby-SDK → simulated firmware → pins → action tensor |
-| 0.5 | Construct the Task 3 firmware instances against the server's existing env and 18 joints |
-| 0.5 | Path selection flag or console script; confirm Isaac and Jetson launches unaffected |
-| 1 | Integration test: teleop command end-to-end through the firmware path |
-| 1 | Fleet registration and teleop check; enumerate and fix gaps or document M23 hand-offs |
+| 1 | `hal/server/fullsim/` package scaffold: `FullSimulatorHalServer` reusing Isaac observation half; console script and `pyproject.toml` |
+| 1.5 | Command path: JointCommand → firmware control loop → simulated pins → `env.step` action tensor |
+| 0.5 | Backend selection (`--backend fullsim` or console script); confirm Jetson and Isaac launches unaffected |
+| 1 | Integration test: full path end-to-end, teleop command moves the sim robot |
+| 1 | Fleet registration and teleop demo; enumerate and fix gaps or document M23 hand-offs |
 
 ## Information
 

@@ -42,8 +42,6 @@ M21 deferred publishing this image to M23 explicitly, along with detecting an ab
 
 Verified at `hal/server/isaac/hal_server.py:317`, which reads `self.contacvt_sensor = self.scene.sensors['contact_forces']`. The typo means `self.contact_sensor` is never set, so any code reading it fails or silently sees nothing. Anything routing contact or current data through the HAL server hits this first.
 
-A one-character fix with a real consequence, and a good example of the class of item that should be marked AI-suited.
-
 ### 6. Position commands to the real MCU are disabled
 
 Verified at `hal/server/jetson/krabby_mcusdk.py:122`. `apply_command` builds normalized position commands and then does not send them, falling back to `_jog_all_joints` instead, because a potentiometer is not connected on every joint. The comment records the reason.

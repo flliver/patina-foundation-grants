@@ -10,9 +10,8 @@ Line numbers point at the right function and drift as the code changes.
 
 ## 1. Hip yaw motors
 
-1. Assemble the slot boards. Left and right mirror each other, so confirm orientation first. Press the 6201RS bearings into their pockets and dry-fit the shoulder bolt — it should spin freely with no wobble.
-2. Fit the lever arms. Bolt each gearmotor to its mount plate, fit the output to the yaw pivot, and rotate the joint by hand through its full range. Sand the slot wherever it rubs. Legs 1-3-5 and 2-4-6 mirror; confirm the side before bolting.
-3. Crimp, label, and tug-test every lead — power and POT. The pin assignment at the board is `firmware/MOTOR_HEADER_PINOUT.md`; connector families are in `hardware/Uno-v0.2/diagrams/BOM.md`.
+1. Assemble the slot boards, mount to vertical hip boards w/ screws. Install the lever arms, fabricate/buy any necessary parts to complete all six lever arms.
+2. Crimp, label, and tug-test every lead — power and POT. The pin assignment at the board is `firmware/MOTOR_HEADER_PINOUT.md`; connector families are in `hardware/Uno-v0.2/diagrams/BOM.md`. The yaw motors have a 15-pin diagram from the manufacturer Fletcher can locate for you and point out which wire is the correct encoder wire.
 
 ## 2. Orin, battery, and controller
 
