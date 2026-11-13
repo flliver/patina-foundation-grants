@@ -21,9 +21,9 @@ Keep one list in `SUPPORT-LOG.md`. Each item records who reported it, what goes 
 
 Start the list with these items, in this order:
 1. Bring up `can0` and `can1` on the Orin as CAN FD at 1 Mbit/s arbitration and 5 Mbit/s data. Denny's bench tests so far used a CANable2 USB adapter on Windows (`hardware/PCB-v0.3/Firmware/bench/CAN_TEST_NOTES.md`), so the Orin's own ports are untested.
-2. Check that the `krabby-firmware` CAN SDK talks to Denny's firmware as described in `hardware/PCB-v0.3/Firmware/docs/APPLICATION_PROTOCOL.md`, and fix any gaps.
-3. Add the Task 1 calibrate command and calibrated position telemetry to Denny's firmware, using its existing flash configuration storage.
-4. Move Denny's control GUI (`hardware/PCB-v0.3/Firmware/tools/krabby_control_gui.py`, described in `CONTROL_GUI.md`) into `krabby-firmware`. Today it talks to a CANable2 over a COM port. Make it use SocketCAN on the Orin, and list every board it hears on the bus. It replaces `firmware.gui` for v0.3 boards.
+2. Flash the Task 1 firmware onto a board with Denny's OpenBLT tools, and check each STM32 interface function against the real hardware: drive direction, hall counts per full travel, pot range, fault clearing, and calibration surviving a power cycle.
+3. Run `krabby-firmware-stm duty`, `calibrate`, and `telemetry` against the real board over `can0`.
+4. Move Denny's control GUI (`hardware/PCB-v0.3/Firmware/tools/krabby_control_gui.py`, described in `CONTROL_GUI.md`) into `krabby-firmware`. Today it talks to a CANable2 over a COM port and speaks his example firmware's messages. Make it use SocketCAN on the Orin and the DBC messages through the CAN SDK, and list every board it hears on the bus. It replaces `firmware.gui` for v0.3 boards.
 5. Publish the `krabby-firmware` version with these changes to PyPI.
 6. On the Orin, `pip install krabby-firmware` from PyPI, plug in a board, and confirm the GUI lists it, shows its telemetry, and drives its motors.
 7. Run the release image with `--stm` on the Orin against the real boards, and fix what breaks.
