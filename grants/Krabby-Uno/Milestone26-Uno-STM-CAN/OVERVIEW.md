@@ -2,13 +2,41 @@
 
 ## Grant Overview
 
-Move the Krabby software onto the new Krabby Uno v0.3 leg boards. Each leg gets its own STM32 board, and the Orin talks to the boards over CAN FD. The GUI, gamepad, and AI model control the boards through a new CAN SDK. Denny has already brought up the real board and flashing over CAN, and his firmware serves as example code for driving the board's hardware. This milestone writes the firmware that ships and tests it, with the tools above it, against the simulated robot, so engineers and AI agents can work without hardware. It then spends two support weeks fixing what breaks when it meets the real robot.
+Move the Krabby software onto the new Krabby Uno v0.3 leg boards. Each leg gets its own STM32 board, and the Orin talks to the boards over CAN FD. The GUI, gamepad, and AI model control the boards through a new CAN SDK. Denny has already brought up the real board and flashing over CAN, and his firmware serves as example code for driving the board's hardware. This milestone consists of writing the firmware that ships and testing it, with the tools above it, against the simulated robot, so engineers and AI agents can work without hardware, followed by two support weeks of fixing what breaks on the real robot.
 
 Today three Arduino Megas drive the robot. One Mega connects to the Orin over USB and relays every command and telemetry line for the other two, and the boards elect these roles at boot. The v0.3 hardware removes the need for all of this, since each board has its own CAN connection and a fixed ID set by a switch, but the board has no firmware yet.
 
 The new firmware is small and written from scratch. It does three things: it receives a duty cycle for each of the leg's three joints and drives them, it sends back each joint's raw pot reading, signed hall count, and calibrated position from 0.0 to 1.0, and it calibrates a joint on command by driving it to both ends and saving the readings. A leg is identified by its CAN ID, with legs 1, 3, and 5 on the left and 2, 4, and 6 on the right, from front to rear. A joint is identified by its ID within the leg: 1 = yaw, 2 = hip, 3 = knee. Duty runs from -1.0 to 1.0, where the sign is direction and the magnitude is power, and a duty of 0 holds the joint. A DBC file defines every CAN message, and both the firmware and the Python tools build on that one file. Joint names like "front left hip yaw" live only in the GUI and the robot definition. Role election, joint name strings, position targets, and the hold and version commands are all gone from the firmware.
 
-Task 1 writes the firmware behind two hardware interfaces, one for the pins and one for CAN, each with a simulated and a real STM32 version, plus a new CLI, then controls the simulated robot from that CLI over a virtual CAN bus. Task 2 connects the GUI, HAL, gamepad, and AI model to the CAN SDK behind an `--stm` option and tests them against the sim. Tasks 3 and 4 are 20-hour support weeks, working bugs and gaps that Denny and Nick find on the real robot.
+The firmware has two interfaces, and each has a real side and a virtual side:
+
+```
+                   Real robot                      Simulated robot
+                   ----------                      ---------------
+Python tools       CLI, GUI, HAL                   the same tools
+                        |                                |
+                   CAN SDK                         CAN SDK with --virtual
+                        |                                |
+CAN interface      can0 and can1                   vcan0
+                        |                                |
+Firmware core      can_handler.c, telemetry_handler.c, calibration.c
+                   (the same C files on both sides)
+                        |                                |
+Pin interface      board_pins_t, one C class with two implementations
+                        |                                |
+                   board_pins_stm32.c              board_pins_isaac.c
+                   STM32 HAL_* calls               Isaac joint targets and readback
+                        |                                |
+Hardware           motors, pots, hall sensors      the robot in IsaacSim
+                   (one board per leg)             (six boards, one IsaacSim instance)
+```
+
+- The CAN interface sits between the Python SDK and a board. Both sides carry the same frames, and one SDK option picks real or virtual. The tools above the SDK cannot tell the difference.
+- The pin interface sits between the firmware core and the hardware. The core turns CAN frames into pin controls, and pin readings into telemetry, and does all pin control through one C class, `board_pins_t`. The class has two implementations. `board_pins_stm32.c` copies its `HAL_*` calls from Denny's example firmware. `board_pins_isaac.c` drives the simulated robot in IsaacSim, the way the Mega simulation does through its host `Arduino.h`. The simulator runs six boards, one per leg, and all six attach to the same IsaacSim instance and the same robot, each driving only its own leg's three joints.
+
+Only the virtual sides run in Tasks 1 and 2. Meanwhile, Denny can implement the motor and other device controls directly w/ STM commands, then we'll put them behind the new interface as soon as it's ready, and task 3/4 can do integration support for that.
+
+Task 1 consists of writing the firmware core, both implementations of each interface, and a new CLI, then controlling the simulated robot from that CLI over `vcan0`. Task 2 consists of connecting the GUI, HAL, gamepad, and AI model to the CAN SDK behind an `--stm` option and testing them against the sim. Tasks 3 and 4 are 20-hour support weeks spent on bugs and gaps that Denny and Nick find on the real robot.
 
 At the end, the GUI, gamepad, and AI model drive the simulated robot over CAN with the same SDK the Orin uses, and the problems found on the real robot during the support weeks are fixed or listed with estimates.
 
@@ -16,7 +44,7 @@ At the end, the GUI, gamepad, and AI model drive the simulated robot over CAN wi
 
 - The v0.3 boards cannot run a motor until this firmware exists, so the robot cannot move to the new electronics.
 - One serial link and one leader board currently carry all 18 joints, so a leader failure takes down the whole robot. On CAN each board acts on its own commands and sends its own telemetry.
-- Replacing the Mega hardware would otherwise break the Milestone 21 simulation. This milestone keeps firmware and the tools above it testable without a robot, for both engineers and AI agents.
+- Replacing the Mega hardware would otherwise break the Milestone 21 simulation. With this milestone, the firmware and the tools above it stay testable without a robot, for both engineers and AI agents.
 
 ## Tasks
 
@@ -26,30 +54,30 @@ Total: ~19 working days, roughly 3-4 weeks part-time at 20-25 hours per week. Im
 
 #### Narrative
 
-Write the firmware that ships on the v0.3 boards, and the CLI, then use them to move the simulated robot over virtual CAN. This task needs no hardware. The firmware reaches the hardware only through two interfaces, one for the pins and one for CAN, the same way the Mega firmware runs against a simulated `Arduino.h` and a virtual serial port. Each interface has a simulated version and a real STM32 version, and the STM32 version copies its `HAL_*` calls from Denny's example firmware. Work runs from the bottom of the stack up, and each step gives something to check before the next one starts. This requires 1) the pin and CAN interfaces and their STM32 versions, 2) a DBC file that defines the CAN messages, and a new CLI with a command that sends a duty, 3) `can_handler.c`, which receives the duty and drives the joints, 4) `telemetry_handler.c`, which sends pot, hall, and position back, 5) `calibration.c`, which calibrates a joint on command, 6) the simulated pins and simulated CAN, so six copies of the same firmware drive the simulated robot in IsaacSim.
+Write the firmware that ships on the v0.3 boards, and the CLI, then use them to move the simulated robot over virtual CAN. No hardware is needed. The firmware has the two interfaces shown in the diagram above, and the work consists of building both implementations of each. On the pin side that means the `board_pins_t` class and both of its implementations: `board_pins_stm32.c`, which copies its `HAL_*` calls from Denny's example firmware, and `board_pins_isaac.c`, which drives IsaacSim. The real and virtual CAN sides are the same apart from the SDK's `--virtual` option. Work runs from the bottom of the stack up, and each step gives something to check before the next one starts. This requires 1) the `board_pins_t` class, `board_pins_stm32.c`, `can_stm32.c`, and the STM32 build, 2) a DBC file that defines the CAN messages, and a new CLI with a command that sends a duty, 3) `can_handler.c`, which receives the duty and drives the joints, 4) `telemetry_handler.c`, which sends pot, hall, and position back, 5) `calibration.c`, which calibrates a joint on command, 6) `board_pins_isaac.c` and `can_sim.c`, so six copies of the same firmware drive the simulated robot in IsaacSim.
 
 The Mega firmware, its CLI, and its simulation stay as they are, because the existing robots still depend on them.
 
 #### Acceptance Criteria
 
-- 1a - `krabby-firmware-stm duty 1 0.5 0 0` sends an FD frame that `candump vcan0` shows with ID `0x100`, a leg 1 joint 1 duty of 0.5, and every other joint at 0.
+- 1a - `krabby-firmware-stm --virtual duty 1 0.5 0 0` sends an FD frame that `candump vcan0` shows with ID `0x100`, a leg 1 joint 1 duty of 0.5, and every other joint at 0.
 - 1b - Unit tests show that a board drives its joints in the requested direction and power, ignores the values for other legs, and sends telemetry every 50 ms and its firmware version every 1000 ms.
-- 1c - With six simulated boards on `vcan0`, `krabby-firmware-stm duty 1 1.0 0 0` moves only leg 1's yaw joint in IsaacSim. `krabby-firmware-stm telemetry` shows that joint's pot and hall values changing at 20 Hz and the firmware version at 1 Hz. When the duty reverses, the hall count reverses too.
+- 1c - With six virtual boards on `vcan0`, `krabby-firmware-stm --virtual duty 1 1.0 0 0` moves only leg 1's yaw joint in IsaacSim. `krabby-firmware-stm --virtual telemetry` shows that joint's pot and hall values changing at 20 Hz and the firmware version at 1 Hz. When the duty reverses, the hall count reverses too.
 - 1d - An integration test performs the check in 1c without a window and passes under `make -C firmware test-firmware-isaac`.
-- 1e - `krabby-firmware-stm calibrate 1 2` drives leg 1's hip to its extended and retracted stops in IsaacSim and saves both ends. Afterwards, telemetry shows the raw pot and hall values and a position of 0.0 at the retracted stop, rising toward 1.0 as the hip extends, and the calibration survives a simulated board restart.
-- 1f - `make -C firmware stm-build` compiles the same firmware with the STM32 versions of both interfaces for the STM32G474.
+- 1e - `krabby-firmware-stm --virtual calibrate 1 2` drives leg 1's hip to its extended and retracted stops in IsaacSim and saves both ends. Afterwards, telemetry shows the raw pot and hall values and a position of 0.0 at the retracted stop, rising toward 1.0 as the hip extends, and the calibration survives a simulated board restart.
+- 1f - `make -C firmware stm-build` compiles the same firmware core with `board_pins_stm32.c` and `can_stm32.c` for the STM32G474.
 - 1g - `make -C firmware compile-firmware`, `test-native`, and `test-firmware` still pass with no changes to the Mega firmware.
 
 #### Time estimate (~6 days)
 
 | Days | Sub-task title |
 |------|----------------|
-| 1 | Pin and CAN interfaces, their STM32 versions, and the STM32 build |
+| 1 | `board_pins_t`, `board_pins_stm32.c`, `can_stm32.c`, and the STM32 build |
 | 0.5 | DBC file, `connect()`, and the `duty` command |
 | 1 | `can_handler.c` and its unit tests |
 | 1 | `telemetry_handler.c` and its unit tests |
 | 1 | `calibration.c`, the `calibrate` command, and its unit tests |
-| 1.5 | Simulated pins, simulated CAN, and the Isaac test |
+| 1.5 | `board_pins_isaac.c` and `can_sim.c` for six boards in one IsaacSim instance, and the Isaac test |
 
 ### Task 2 - GUI, HAL, gamepad, and model on --stm → [TASK-2-CLIENT-REWIRE.md](TASK-2-CLIENT-REWIRE.md)
 
@@ -61,7 +89,7 @@ Without `--stm`, every tool behaves as it does today, so one image serves both M
 
 #### Acceptance Criteria
 
-- 2a - `python -m firmware.gui --stm` jogs joints on the simulated robot over `vcan0` and shows live pot and hall values. Without the flag, the GUI still uses the serial SDK and its existing tests pass.
+- 2a - `python -m firmware.gui --stm --virtual` jogs joints on the simulated robot over `vcan0` and shows live pot and hall values. Without the flag, the GUI still uses the serial SDK and its existing tests pass.
 - 2b - With the Isaac HAL running `--backend fullsim --firmware-transport can`, the gamepad moves the simulated robot's joints, and `candump vcan0` shows the SetDuty frames.
 - 2c - In the same setup, the AI model's commands move the simulated robot's joints.
 - 2d - Unit tests show that a full `JointCommand` reaches the right leg and joint as duty, with no radian conversion, and that the gamepad and model mappers keep today's output without `--stm`.

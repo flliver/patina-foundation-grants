@@ -3,7 +3,7 @@
 Goal: Connect the GUI, the HAL, the gamepad, and the AI model to the CAN SDK with an `--stm` option, and confirm each one moves the simulated robot over `vcan0`. Without the option, every tool behaves as it does today.
 
 Outputs
-- `python -m firmware.gui --stm`, with `firmware/gui/stm_adapter.py`.
+- `python -m firmware.gui --stm`, with a `--virtual` option and `firmware/gui/stm_adapter.py`.
 - `hal/server/jetson/krabby_stm_mcusdk.py`, which sends duty to the CAN SDK.
 - An `--stm` option on the Jetson HAL server and the gamepad and model mappers, with a matching setting in `krabby run`.
 - A `can` firmware transport for the Isaac HAL's `--backend fullsim`.
@@ -38,7 +38,7 @@ The GUI is built around the Mega SDK's interface: joint names like `FLHY`, a `jo
 - `imu` and `battery` are `None`. `role_last_seen` is empty, and the GUI's per-board freshness display stays blank.
 - `last_feedback_ts`, `last_error`, `target`, `connect()`, and `close()` behave as they do in the Mega SDK.
 
-In `firmware/gui/__main__.py`, add `--stm`, which makes `app.py` create the adapter. Hide the position target control in this mode, because the firmware has no position command. The calibrate control calls `send_calibration()` for the selected joint.
+In `firmware/gui/__main__.py`, add `--stm`, which makes `app.py` create the adapter, and `--virtual`, which passes `virtual=True` to the SDK's `connect()` so the GUI talks to the virtual boards on `vcan0`. Hide the position target control in this mode, because the firmware has no position command. The calibrate control calls `send_calibration()` for the selected joint.
 
 ## 3. HAL
 
@@ -48,11 +48,11 @@ Add an `stm` argument to `JetsonHalServer` and to `create_hal_server()` (`runtim
 
 ## 4. Gamepad and model mappers
 
-With `--stm`, the gamepad mapper scales full stick to a duty of 1.0 instead of 0.5. The model mapper clamps the model's action to -1.0 to 1.0 and sends it as duty. How a trained model's action becomes duty for the linear actuators is a question for the next model release, and this task only passes the action through.
+With `--stm`, the gamepad mapper scales full stick to a duty of 1.0 instead of 0.5. The model mapper clamps the model's action to -1.0 to 1.0 and sends it as duty. How a trained model's action becomes duty for the linear actuators is a question for the next model release, and here the action is only passed through.
 
 ## 5. Isaac fullsim over CAN
 
-Add `can` to the `--firmware-transport` choices in `hal/server/isaac/command_backend_cli.py`. In this mode `_initialize_mcusdk` attaches the six simulated boards from Task 1 to the env and connects `KrabbyStmMCUSDK` to them over `vcan0`. The HAL server's loop still steps the env, so the boards do not step it themselves. Each step the SDK returns every joint's current duty as the normalized action, the way `IsaacSimFirmwareMCUSDK` returns drive pins today. This lets the gamepad and AI model drive the simulated robot through the same SDK the Orin uses.
+Add `can` to the `--firmware-transport` choices in `hal/server/isaac/command_backend_cli.py`. In this mode `_initialize_mcusdk` attaches the six simulated boards from Task 1 to the env and connects `KrabbyStmMCUSDK` to them with the SDK's `virtual=True`, over `vcan0`. The HAL server's loop still steps the env, so the boards do not step it themselves. Each step the SDK returns every joint's current duty as the normalized action, the way `IsaacSimFirmwareMCUSDK` returns drive pins today. This lets the gamepad and AI model drive the simulated robot through the same SDK the Orin uses.
 
 ## 6. Image and launcher
 

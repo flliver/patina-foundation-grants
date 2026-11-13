@@ -40,4 +40,4 @@ An item is done when the problem it describes no longer occurs. Show this with a
 
 ## 3. End of the week
 
-Post a short summary in Discord: the items finished, the hours spent, and the top of the remaining list. Task 4 continues from the same list.
+Post a short summary in Discord: the items finished, the hours spent, and the top of the remaining list. Work in Task 4 continues from the same list.

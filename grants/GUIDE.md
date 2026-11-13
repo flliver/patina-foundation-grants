@@ -61,9 +61,9 @@ Say a thing once. Announcing a count and then re-listing the items doubles the l
 
 Fold the specifics into the sentence that introduces them:
 
-    Task 1 builds the RobotCore game loop together with the Arduino
-    output calls: pinMode, digitalWrite, analogWrite, and millis for
-    the loop clock.
+    Task 1 consists of building the RobotCore game loop together with
+    the Arduino output calls: pinMode, digitalWrite, analogWrite, and
+    millis for the loop clock.
 
 Lead with the point. The first sentence of a narrative or section states the job in plain words, and what the job requires follows as an inline numbered list:
 
@@ -89,6 +89,7 @@ Prefer the simplest validation that proves the result. A small script a person r
 * Show counts instead of asserting them: "9 streams: an RGB and a depth view from each existing camera, a depth view from each new one", not "the 9 streams now offered".
 * Use a collective term only when it names a real code structure (`JETSON_SENSOR_CATALOG`), never as invented prose vocabulary.
 * Avoid the constructions that read as machine-written. The worst offenders are `just...`, a `Scope:` prefix standing in for a sentence, and the "X, not Y" contrast where a plain positive statement works.
+* A task, milestone, or document is not a person and cannot act. "Task 1 writes the firmware", "This milestone keeps the tools testable", and "Task 4 continues from the list" are anti-patterns. Write "Task 1 consists of writing the firmware", "With this milestone, the tools stay testable", and "Work in Task 4 continues from the list". Software can still act: "the SDK sends one frame" is fine.
 * Prefer concrete numbers, real symbol names, and actual paths over descriptions of them.
 * Avoid duplication and restatement across narrative, AC, and tasks. After writing the full doc, review for duplicity and move each concept to where it makes the most sence to be.
 

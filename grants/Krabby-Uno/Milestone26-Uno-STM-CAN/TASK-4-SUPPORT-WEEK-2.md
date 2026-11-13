@@ -17,7 +17,7 @@ Note: this task is time-boxed, not scope-fixed. The commitment is 20 hours, work
 
 ## 1. The list
 
-Continue from `SUPPORT-LOG.md` as Task 3 left it. Denny and Nick re-set the priority at the start of the week, and new reports join the list with the same fields.
+Continue from `SUPPORT-LOG.md` as it stood at the end of Task 3. Denny and Nick re-set the priority at the start of the week, and new reports join the list with the same fields.
 
 ## 2. Working the list
 
